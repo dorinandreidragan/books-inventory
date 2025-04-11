@@ -1,0 +1,47 @@
+# Base URL
+@baseUrl = http://localhost:5000
+
+# Test POST /addBook
+POST {{baseUrl}}/addBook HTTP/1.1
+Content-Type: application/json
+
+{
+    "Title": "The Pragmatic Programmer",
+    "Author": "Andy Hunt and Dave Thomas",
+    "ISBN": "9780135957059"
+}
+
+###
+
+# Test GET /books/{id} (replace {id} with a valid BookId from the POST response)
+GET {{baseUrl}}/books/1 HTTP/1.1
+Accept: application/json
+
+###
+
+# Test DELETE /books/{id} (replace {id} with a valid BookId from the POST response)
+DELETE {{baseUrl}}/books/15 HTTP/1.1
+
+###
+
+# Test GET /books
+GET {{baseUrl}}/books HTTP/1.1
+Accept: application/json
+
+###
+
+# Test GET /books/search by title
+GET {{baseUrl}}/books/search?title=The Pragmatic Programmer HTTP/1.1
+Accept: application/json
+
+###
+
+# Test GET /books/search by author
+GET {{baseUrl}}/books/search?title=AI: A Modern Approach HTTP/1.1
+Accept: application/json
+
+###
+
+# Test GET /books/search by ISBN
+GET {{baseUrl}}/books/search?isbn=9780135957059 HTTP/1.1
+Accept: application/json
