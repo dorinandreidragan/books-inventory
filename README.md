@@ -81,14 +81,7 @@ The tests include:
 ## 🔄 Continuous Integration
 
 This repository uses GitHub Actions for Continuous Integration (CI). The CI pipeline is defined in
-the `.github/workflows/ci.yml` file and includes the following steps:
-
-1. **Build**: Ensures the project compiles successfully.
-2. **Run Tests**: Executes all unit and integration tests to verify the application behaves as expected.
-3. **Static Analysis**: (Optional) Runs tools like linters or code analyzers to maintain code quality.
-
-Every pull request and commit to the main branch triggers the CI pipeline automatically, ensuring
-that the codebase remains stable and reliable.
+the `.github/workflows/ci.yml` file. Every pull request and commit to the main branch triggers the CI pipeline automatically, ensuring that the codebase remains stable and reliable.
 
 ## 📖 Documentation
 
