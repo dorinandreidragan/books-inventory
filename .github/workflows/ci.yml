@@ -1,0 +1,44 @@
+name: BooksInventory CI
+
+on:
+  push:
+    branches:
+      - main
+      - "feature/**" # Include feature branches
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "9.0"
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build solution
+        run: dotnet build --no-restore
+
+      - name: Run tests
+        run: dotnet test --logger "trx;LogFileName=test-results.trx" --no-build --verbosity normal
+
+      - name: Upload XUnit test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: TestResults
+          path: "**/test-results.trx"
+
+      - name: Report Test Results
+        uses: dorny/test-reporter@v2
+        with:
+          artifact: TestResults
+          name: XUnit Tests
+          path: "**/test-results.trx"
+          reporter: dotnet-trx
