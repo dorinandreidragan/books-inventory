@@ -1,28 +1,39 @@
-using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace BooksInventory.WebApi.Tests.Factories;
 
 public class CustomWebApplicationFactory : WebApplicationFactory<Program>
 {
-    private readonly string postgreSqlConnectionString;
+    private readonly CompositeFixture fixture;
 
-    public CustomWebApplicationFactory(string postgreSqlConnectionString)
+    public CustomWebApplicationFactory(CompositeFixture fixture)
     {
-        this.postgreSqlConnectionString = postgreSqlConnectionString;
+        this.fixture = fixture;
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
-        // Overwrite the existing DB context registration so that tests use the PostgreSQL container.
         builder.ConfigureServices(services =>
         {
             services.AddDbContext<BooksInventoryDbContext>(options =>
             {
-                options.UseNpgsql(postgreSqlConnectionString);
+                options.UseNpgsql(this.fixture.Postgres.Container.GetConnectionString());
+            });
+            services.AddStackExchangeRedisCache(options =>
+            {
+                options.Configuration = this.fixture.Redis.Container.GetConnectionString();
+                options.InstanceName = "BooksInventoryCache:";
             });
         });
+
+        builder.ConfigureLogging(logging =>
+            {
+                logging.ClearProviders();
+                logging.AddConsole();
+            });
     }
 }

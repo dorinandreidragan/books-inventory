@@ -1,5 +1,4 @@
 ﻿using BooksInventory.WebApi.Tests.Factories;
-using BooksInventory.WebApi.Tests.TestContainers;
 
 using FluentAssertions;
 
@@ -16,15 +15,15 @@ public class BooksInventoryTests : IAsyncLifetime
     private readonly HttpClient client;
     private readonly BooksInventoryDbContext dbContext;
 
-    public BooksInventoryTests(PostgreSqlContainerFixture fixture)
+    public BooksInventoryTests(CompositeFixture fixture)
     {
-        this.factory = new CustomWebApplicationFactory(fixture.Postgres.GetConnectionString());
+        this.factory = new CustomWebApplicationFactory(fixture);
         this.client = this.factory.CreateClient();
 
         // Create a scope to retrieve a scoped instance of the DB context.
         // This allows direct interaction with the database for setup and teardown.
         var scope = this.factory.Services.CreateScope();
-        dbContext = scope.ServiceProvider.GetRequiredService<BooksInventoryDbContext>();
+        this.dbContext = scope.ServiceProvider.GetRequiredService<BooksInventoryDbContext>();
     }
 
     public async Task InitializeAsync()
