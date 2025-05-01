@@ -1,10 +1,12 @@
-# HybridCache & Redis: Cache Smarter, Not Harder for ASP.NET APIs
+# HybridCache & Redis: Cache Smarter, Not Harder for ASP.NET APIs 🚀
 
-## Introduction: Cache Smarter, Not Harder
+## Cache Smarter, Not Harder
 
 If your ASP.NET API slows down under frequent database queries, smarter caching can make all the difference. In this article, we'll show you how to integrate HybridCache and Redis to boost performance efficiently. You'll learn how a two-tier caching strategy—a fast in-memory layer complemented by a distributed Redis cache—can cut down on latency and offload your database. We'll walk through the code changes and testing improvements that help you cache smarter, not harder.
 
-## HybridCache: A Smarter Approach to API Caching
+> This article builds on the previous two articles where we covered **testing minimal Web APIs** and adding **PostgreSQL with Testcontainers**.
+
+## HybridCache: A Smarter Approach to API Caching 💡
 
 HybridCache bridges the gaps between `IMemoryCache` and `IDistributedCache` by offering a unified API for both in-process and out-of-process caching. It combines a fast, local in-memory cache with a durable distributed cache—in our project, powered by Redis—giving you the best of both worlds.
 
@@ -347,7 +349,7 @@ It's a super cool part of our implementation—by verifying HybridCache’s two-
 
 Other tests (like adding, updating, and deleting books) also interact with the caching layers indirectly by verifying the API responses. They ensure that our endpoints work seamlessly with HybridCache and the underlying containers, confirming both data consistency and performance gains.
 
-### Manual Cache Verification Using a REST Client
+### Manual Cache Verification Using a REST Client 🖥️
 
 1. Add Redis to our development environment. Update the `docker-compose.yml`:
 
@@ -414,16 +416,15 @@ volumes:
 
 - **Subsequent GET Requests**: No SELECT log should appear, confirming that the response is served from cache.
 
-## Conclusion & Next Steps
+## Conclusion & Next Steps 🎯
 
 In this article, we explored how to boost your ASP.NET API's performance by leveraging HybridCache with Redis. We walked through our two-level caching strategy, updated API endpoints for fast retrieval and consistency, and demonstrated our robust, containerized testing approach. By using HybridCache, you get a unified caching API with built-in stampede protection and configurable serialization—making it far easier to **cache smarter, not harder**.
 
-### What’s Next?
-
-1. **Monitoring**: Implement **OpenTelemetry** for distributed tracing.
+**Next up**: Observability! We'll integrate OpenTelemetry to monitor cache hits, misses, and performance.
 
 ---
 
-Ready to cache smarter, not harder with HybridCache? Clone the [repository](https://github.com/dorinandreidragan/books-inventory), try it out, and share your experience! Did you find interesting ways to use HybridCache? I'd love to hear about them in the comments or in a GitHub discussion.
+Ready to cache smarter, not harder 🚀? Clone the [GitHub repository], try it out, and share your experience! Did you find interesting ways to use HybridCache? I'd love to hear about them in the comments or in a GitHub discussion.
 
 [HybridCache library in ASP.NET Core]: https://learn.microsoft.com/en-us/aspnet/core/performance/caching/hybrid?view=aspnetcore-9.0
+[GitHub repository]: https://github.com/dorinandreidragan/books-inventory
