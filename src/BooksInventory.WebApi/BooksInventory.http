@@ -20,7 +20,7 @@ Accept: application/json
 ###
 
 # Test DELETE /books/{id} (replace {id} with a valid BookId from the POST response)
-DELETE {{baseUrl}}/books/15 HTTP/1.1
+DELETE {{baseUrl}}/books/1 HTTP/1.1
 
 ###
 
@@ -37,7 +37,7 @@ Accept: application/json
 ###
 
 # Test GET /books/search by author
-GET {{baseUrl}}/books/search?title=AI: A Modern Approach HTTP/1.1
+GET {{baseUrl}}/books/search?author=Andy Hunt HTTP/1.1
 Accept: application/json
 
 ###

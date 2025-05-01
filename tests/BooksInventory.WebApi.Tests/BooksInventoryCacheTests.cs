@@ -6,7 +6,6 @@ using BooksInventory.WebApi.Tests.Factories;
 using FluentAssertions;
 
 using Microsoft.Extensions.Caching.Distributed;
-using Microsoft.Extensions.Caching.StackExchangeRedis;
 using Microsoft.Extensions.DependencyInjection;
 
 using Xunit;
@@ -27,8 +26,8 @@ public class BooksInventoryCacheTests : IAsyncLifetime
         this.factory = new CustomWebApplicationFactory(fixture);
         this.client = this.factory.CreateClient();
 
-        // Create a scope to retrieve a scoped instance of the DB context.
-        // This allows direct interaction with the database for setup and teardown.
+        // Create a scope to retrieve scoped instances of DB context and Redis cache
+        // for direct database and cache interactions during tests
         var scope = this.factory.Services.CreateScope();
         this.db = scope.ServiceProvider.GetRequiredService<BooksInventoryDbContext>();
         this.redis = scope.ServiceProvider.GetRequiredService<IDistributedCache>();
@@ -36,7 +35,7 @@ public class BooksInventoryCacheTests : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        // Clean the database to ensure test isolation.
+        // Clean the database and remove all books to ensure test isolation.
         db.Books.RemoveRange(db.Books);
         await db.SaveChangesAsync();
     }
@@ -65,8 +64,8 @@ public class BooksInventoryCacheTests : IAsyncLifetime
         await this.client.GetAsync($"/books/{book.Id}");
 
         // Mutate db and Redis to differ from the in-memory cache.
-        await db.UpdateTitleAsync(book.Id, "t1_db_updated");
-        await redis.UpdateTitleAsync(book.Id, "t1_redis_updated");
+        await db.UpdateBookAsync(book with { Title = "t1_db_updated" });
+        await redis.UpdateBookAsync(book with { Title = "t1_redis_updated" });
 
         // Request the book again (should return stale value from in-memory cache).
         var response = await this.client.GetAsync($"/books/{book.Id}");
@@ -78,8 +77,8 @@ public class BooksInventoryCacheTests : IAsyncLifetime
         Book bookFromDb = await db.GetByIdAsync(book.Id);
         bookFromDb!.Title.Should().Be("t1_db_updated");
 
-        Book bookFromRedis = await redis.GetByIdAsync(book.Id);
-        bookFromRedis!.Title.Should().Be("t1_redis_updated");
+        var json = await redis.GetStringAsync(book.Id.GetCacheKey());
+        json.Should().Contain("t1_redis_updated");
     }
 
     [Fact]
@@ -103,7 +102,7 @@ public class BooksInventoryCacheTests : IAsyncLifetime
         using var newClient = newFactory.CreateClient();
 
         // Mutate db to differ from redis cache.
-        await db.UpdateTitleAsync(book.Id, "t1_db_updated");
+        await db.UpdateBookAsync(book with { Title = "t1_db_updated" });
 
         // Request the book again (should return stale value from redis cache).
         var response = await newClient.GetAsync($"/books/{book.Id}");
