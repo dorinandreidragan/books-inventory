@@ -1,37 +1,52 @@
-using System.Collections.Concurrent;
+using BooksInventory.WebApi;
+
+using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
-var app = builder.Build();
 
-var books = new ConcurrentDictionary<string, Book>();
-
-app.MapPost("/addBook", (AddBookRequest request) =>
+// Register the PostgreSQL service with EF Core.
+// This replaces any default in-memory service configuration.
+builder.Services.AddDbContext<BooksInventoryDbContext>(options =>
 {
-    var bookId = Guid.NewGuid().ToString();
-    var book = new Book(request.Title, request.Author, request.ISBN);
-
-    if (!books.TryAdd(bookId, book))
-    {
-        return Results.Problem("Failed to add book due to a concurrency issue.");
-    }
-
-    return Results.Ok(new AddBookResponse(bookId));
+    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"));
 });
 
-app.MapGet("/books/{id}", (string id) =>
+var app = builder.Build();
+
+// Inject the DB context to add a new book asynchronously.
+app.MapPost("/addBook", async (AddBookRequest request, BooksInventoryDbContext db) =>
 {
-    if (books.TryGetValue(id, out var book))
+    var book = new Book
     {
-        return Results.Ok(book);
-    }
-    return Results.NotFound(new { Message = "Book not found", BookId = id });
+        Title = request.Title,
+        Author = request.Author,
+        ISBN = request.ISBN
+    };
+    db.Books.Add(book);
+    await db.SaveChangesAsync();
+    return Results.Ok(new AddBookResponse(book.Id));
+});
+
+// Inject the DB context to get a book asynchronously.
+app.MapGet("/books/{id}", async (int id, BooksInventoryDbContext db) =>
+{
+    var book = await db.Books.FindAsync(id);
+    return book is not null
+        ? Results.Ok(book)
+        : Results.NotFound(new { Message = "Book not found", BookId = id });
 });
 
 app.Run();
 
 public record AddBookRequest(string Title, string Author, string ISBN);
-public record AddBookResponse(string BookId);
-public record Book(string Title, string Author, string ISBN);
+public record AddBookResponse(int BookId);
+public record Book
+{
+    public int Id { get; init; }
+    public required string Title { get; init; }
+    public required string Author { get; init; }
+    public required string ISBN { get; init; }
+};
 
-// Explicitly define Program as partial for integration tests
+// Explicitly define Program as partial for integration tests.
 public partial class Program { }

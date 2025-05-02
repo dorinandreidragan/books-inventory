@@ -52,8 +52,6 @@ This creates a `Directory.Packages.props` file. Then, add the following content:
 </Project>
 ```
 
-After updating, run a `dotnet restore` to ensure your solution picks up the centralized versioning.
-
 See [Central Package Management | Microsoft Learn] for more details.
 
 ---
@@ -99,6 +97,8 @@ Ensure your project files no longer include version information, since this is n
   </ItemGroup>
 </Project>
 ```
+
+After updating, run a `dotnet restore` to ensure your solution picks up the centralized versioning.
 
 ---
 
@@ -312,12 +312,7 @@ Phew! That’s a lot of setup, but it’s crucial for ensuring that our tests ru
 
 ## ❌ Watch the Tests Fail
 
-At this point, running the tests will **fail** because the application is still using an in-memory store. For example, you might see an error like:
-
-```
-BooksInventory/tests/BooksInventory.WebApi.Tests/BooksInventoryTests.cs(91): error TESTERROR:
-      BooksInventory.WebApi.Tests.BooksInventoryTests.AddBook_ReturnsBookId (1ms): Error Message: Npgsql.PostgresException : 42P01: relation "Books" does not exist
-```
+At this point, running the tests will **fail** because the application is still using an in-memory store.
 
 ---
 
@@ -406,13 +401,36 @@ After adding the migrations, run your tests using:
 dotnet test
 ```
 
+If your tests fail, is mostly because you should update them to reflect the change we've made. For example:
+
+```csharp
+// this won't work anymore
+result!.BookId.Should().NotBeNullOrEmpty();
+
+// should be change to this
+result!.BookId.Should().BeGreaterThan(0);
+```
+
+Also, if you see a warning like this:
+
+```bash
+/usr/lib/dotnet/sdk/9.0.105/Microsoft.Common.CurrentVersion.targets(2413,5): warning MSB3277:
+      Found conflicts between different versions of "Microsoft.EntityFrameworkCore.Relational" that could not be resolved.
+```
+
+You can fix it just by adding the `Microsoft.EntityFrameworkCore.Relational` package to the `BooksInventory.WebApi` project with the right version:
+
+```bash
+dotnet add src/BooksInventory.WebApi package Microsoft.EntityFrameworkCore.Relational --version 9.0.4
+```
+
 Your tests should now run smoothly within the containerized environment.
 
 ---
 
 ## ⚙️ Developer Setup for Manual Testing
 
-For **manual testing in a development environment**, be sure to apply the migrations after starting the database. Use the following `docker-compose.yml` configuration to start PostgreSQL:
+For **manual testing in a development environment**, be sure to apply the migrations after starting the database. Use the following `docker-compose.yml` in your root folder, to start PostgreSQL:
 
 ```yaml
 services:
@@ -440,7 +458,7 @@ volumes:
 1. **Start the database container:**
 
    ```bash
-   docker-compose up -d
+   docker compose up -d
    ```
 
 2. **Apply migrations:**
@@ -449,16 +467,6 @@ volumes:
 
    ```bash
    dotnet ef database update --project src/BooksInventory.WebApi/BooksInventory.WebApi.csproj
-   ```
-
-3. **Test the database connection:**
-
-   Install the PostgreSQL client (for example, on Ubuntu use `sudo apt install postgresql-client`), then connect using:
-
-   ```bash
-   psql -h localhost -U user -d books_inventory
-
-   # Enter "password" as password when prompted.
    ```
 
    If you see an error message such as:
@@ -471,6 +479,16 @@ volumes:
    ```
 
    this is normal since this error appears when no migrations have been applied yet. You may safely ignore it.
+
+3. **Test the database connection:**
+
+   Install the PostgreSQL client (for example, on Ubuntu use `sudo apt install postgresql-client`), then connect using:
+
+   ```bash
+   psql -h localhost -U user -d books_inventory
+
+   # Enter "password" as password when prompted.
+   ```
 
 4. **Verify the Database Schema:**
 
@@ -518,6 +536,7 @@ For a quick manual test of your API endpoints:
   Accept: application/json
   ```
 
+- Start your web app: `dotnet run --project src/BooksInventory.WebApi/BooksInventory.WebApi.csproj`.
 - Send these requests to verify that the API routes are functioning as expected.
 
 ---
