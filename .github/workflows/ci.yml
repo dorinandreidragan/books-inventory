@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - "feature/**" # Include feature branches
+      - "episode/**" # Include episode branches
   pull_request:
 
 jobs:

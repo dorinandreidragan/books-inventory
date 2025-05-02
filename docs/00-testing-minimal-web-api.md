@@ -19,6 +19,7 @@ dotnet new xunit -o tests/BooksInventory.WebApi.Tests
 
 dotnet sln add src/BooksInventory.WebApi
 dotnet sln add tests/BooksInventory.WebApi.Tests
+dotnet add tests/BooksInventory.WebApi.Tests reference src/BooksInventory.WebApi
 
 dotnet add tests/BooksInventory.WebApi.Tests package FluentAssertions
 dotnet add tests/BooksInventory.WebApi.Tests package Microsoft.AspNetCore.Mvc.Testing
