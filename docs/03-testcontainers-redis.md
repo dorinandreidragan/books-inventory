@@ -4,9 +4,9 @@
 
 If your ASP.NET API slows down under frequent database queries, smarter caching can make all the difference. In this article, we'll show you how to integrate HybridCache and Redis to boost performance efficiently. You'll learn how a two-tier caching strategy—a fast in-memory layer complemented by a distributed Redis cache—can cut down on latency and offload your database. We'll walk through the code changes and testing improvements that help you cache smarter, not harder.
 
-> This article builds on the previous two articles where we covered **testing minimal Web APIs** and adding **PostgreSQL with Testcontainers**.
+> This article builds on the previous two articles where we covered **[testing minimal Web APIs][episode-01]** and adding **[PostgreSQL with Testcontainers][episode-02]**.
 
-## HybridCache: A Smarter Approach to API Caching 💡
+## HybridCache: A Smarter Approach to API Caching
 
 HybridCache bridges the gaps between `IMemoryCache` and `IDistributedCache` by offering a unified API for both in-process and out-of-process caching. It combines a fast, local in-memory cache with a durable distributed cache—in our project, powered by Redis—giving you the best of both worlds.
 
@@ -431,7 +431,9 @@ In this article, we explored how to boost your ASP.NET API's performance by leve
 
 Ready to cache smarter, not harder 🚀? Clone the [GitHub repository], try it out, and share your experience! Did you find interesting ways to use HybridCache? I'd love to hear about them in the comments or in a GitHub discussion.
 
-[HybridCache library in ASP.NET Core]: https://learn.microsoft.com/en-us/aspnet/core/performance/caching/hybrid?view=aspnetcore-9.0
-[GitHub repository]: https://github.com/dorinandreidragan/books-inventory
-[Cache miss]: ../.assets/cache-miss.gif
 [Cache hit]: ../.assets/cache-hit-in-memory.gif
+[Cache miss]: ../.assets/cache-miss.gif
+[episode-01]: ./00-testing-minimal-web-api.md
+[episode-02]: ./01-%20testcontainers-postgresql.md
+[GitHub repository]: https://github.com/dorinandreidragan/books-inventory
+[HybridCache library in ASP.NET Core]: https://learn.microsoft.com/en-us/aspnet/core/performance/caching/hybrid?view=aspnetcore-9.0
