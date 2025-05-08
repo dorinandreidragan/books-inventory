@@ -95,7 +95,12 @@ app.MapGet("/books/{id}", async (int id, BooksInventoryDbContext db, HybridCache
 _Explanation:_
 
 - **Cache Miss:** The first request fetches the book from the database and then caches it.
+
+  ![Cache miss]
+
 - **Cache Hit:** Subsequent requests serve the book data from the much faster in-memory cache—falling back to Redis if the app has restarted.
+
+  ![Cache hit]
 
 ### **DELETE Endpoint: Ensuring Consistency by Invalidation**
 
@@ -427,4 +432,6 @@ In this article, we explored how to boost your ASP.NET API's performance by leve
 Ready to cache smarter, not harder 🚀? Clone the [GitHub repository], try it out, and share your experience! Did you find interesting ways to use HybridCache? I'd love to hear about them in the comments or in a GitHub discussion.
 
 [HybridCache library in ASP.NET Core]: https://learn.microsoft.com/en-us/aspnet/core/performance/caching/hybrid?view=aspnetcore-9.0
-[GitHub repository]: https://github.com/dorinandreidragan/books-inventory/tree/episode/03-testcontainers-redis
+[GitHub repository]: https://github.com/dorinandreidragan/books-inventory
+[Cache miss]: ../.assets/cache-miss.gif
+[Cache hit]: ../.assets/cache-hit-in-memory.gif
