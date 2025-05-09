@@ -1,4 +1,4 @@
-# 📚 Books Inventory: A Comprehensive Guide to Modern Software Development
+# 📚 Books Inventory: A Hands-On Guide to Modern Software Development
 
 ![Build Status](https://github.com/dorinandreidragan/books-inventory/actions/workflows/ci.yml/badge.svg)
 
@@ -88,7 +88,6 @@ the `.github/workflows/ci.yml` file. Every pull request and commit to the main b
 The `docs` folder contains detailed guides and tutorials:
 
 - **Episode 1**: [Testing Minimal Web APIs with ASP.NET](./docs/00-testing-minimal-web-api.md)
-- **Episode 2**: [Get Ready for Testcontainers](./docs/01-testcontainers-postgresql.md)
 
 More episodes will be added to cover advanced topics in software development and system design.
 

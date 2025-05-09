@@ -201,4 +201,4 @@ Testing ASP.NET minimal Web APIs doesn’t have to be a painful experience. We k
 - Avoided test boilerplate with `FluentAssertions` and extension methods. 💅
 - Leveraged **REST Client** for quAick manual testing. ⚡
 
-Try this approach in your own projects and see how much smoother your testing workflow becomes. Got a cool testing trick? Share it in the comments or hit me up on GitHub [here](https://github.com/dorinandreidragan/books-inventory/tree/episode/00-testing-minimal-web-api). 📬
+Try this approach in your own projects and see how much smoother your testing workflow becomes. Got a cool testing trick? Share it in the comments or hit me up on GitHub [here](https://github.com/dorinandreidragan/books-inventory/tree/episode/01-testing-minimal-web-api). 📬
