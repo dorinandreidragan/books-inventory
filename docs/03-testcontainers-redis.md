@@ -431,9 +431,5 @@ In this article, we explored how to boost your ASP.NET API's performance by leve
 
 Ready to cache smarter, not harder 🚀? Clone the [GitHub repository], try it out, and share your experience! Did you find interesting ways to use HybridCache? I'd love to hear about them in the comments or in a GitHub discussion.
 
-[Cache hit]: ../.assets/cache-hit-in-memory.gif
-[Cache miss]: ../.assets/cache-miss.gif
-[episode-01]: ./00-testing-minimal-web-api.md
-[episode-02]: ./01-%20testcontainers-postgresql.md
-[GitHub repository]: https://github.com/dorinandreidragan/books-inventory
 [HybridCache library in ASP.NET Core]: https://learn.microsoft.com/en-us/aspnet/core/performance/caching/hybrid?view=aspnetcore-9.0
+[GitHub repository]: https://github.com/dorinandreidragan/books-inventory/tree/episode/03-testcontainers-redis
