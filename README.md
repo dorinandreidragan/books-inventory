@@ -1,4 +1,4 @@
-# 📚 Books Inventory: A Comprehensive Guide to Modern Software Development
+# 📚 Books Inventory: A Hands-On Guide to Modern Software Development
 
 ![Build Status](https://github.com/dorinandreidragan/books-inventory/actions/workflows/ci.yml/badge.svg)
 

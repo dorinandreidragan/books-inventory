@@ -558,7 +558,7 @@ By following these steps, we’ve:
 
 Stay tuned for more in-depth articles into system design and testing strategies!
 
-**Your Turn**: Try this approach in your own projects and see how much smoother your testing workflow becomes. Got a cool testing trick? Share it in the comments or hit me up on GitHub [here](https://github.com/dorinandreidragan/books-inventory/tree/episode/01-testcontainers-postgresql). 📬
+**Your Turn**: Try this approach in your own projects and see how much smoother your testing workflow becomes. Got a cool testing trick? Share it in the comments or hit me up on GitHub [here](https://github.com/dorinandreidragan/books-inventory/tree/episode/02-testcontainers-postgresql). 📬
 
 [Central Package Management | Microsoft Learn]: https://learn.microsoft.com/en-us/nuget/consume-packages/Central-Package-Management
 [first article]: https://dev.to/dorinandreidragan/testing-minimal-web-apis-with-aspnet-a-developers-guide-1gio
