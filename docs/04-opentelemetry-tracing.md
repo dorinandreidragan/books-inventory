@@ -4,7 +4,7 @@ This is episode 4 of [A Hands-On Guide to Modern Software Development] series.
 
 Modern applications are like living systems — always running, always changing. And if you can't see what’s happening inside them, you're flying blind.
 
-In this episode, we’ll integrate **OpenTelemetry** with our ASP.NET minimal API and trace everything from database calls to cache hits — all visualized in **Jaeger**. We’ll also learn how to spot inefficiencies, validate cache behavior, and instrument our code for insights.
+In this episode, we’ll integrate [OpenTelemetry] with our ASP.NET minimal API and trace everything from database calls to cache hits — all visualized in [Jaeger]. We’ll also learn how to spot inefficiencies, validate cache behavior, and instrument our code for insights.
 
 ## Why Observability?
 
@@ -113,7 +113,6 @@ Explanations:
 
 - `otel-collector`: Reads config from the mounted file and listens on port `4317` for OTLP traces from the web API.
 - `jaeger`: Exposes port `16686` so you can access the Jaeger UI at `localhost`.
-- Both services are added to Docker Compose for easy local setup.
 
 ## Instrument the API with OpenTelemetry
 
@@ -156,20 +155,20 @@ var app = builder.Build();
 
 Let’s break it down:
 
-- We define a **resource** named `"BooksInventory.WebApi"` to identify this service in trace backends like Jaeger. It adds context to the spans so we know who sent them.
-- `AddAspNetCoreInstrumentation()` captures HTTP request pipeline spans — giving visibility into endpoints, latency, and status codes.
-- `AddNpgsql()` captures PostgreSQL commands (SQL queries, connection details) to understand database usage.
-- `AddOtlpExporter()` sends traces to the collector via OTLP protocol.
-- `AddConsoleExporter()` logs traces to the console — helpful for local debugging.
+- **Resource Definition**: `"BooksInventory.WebApi"` provides trace context, identifying spans in Jaeger.
+- **HTTP Tracing**: `AddAspNetCoreInstrumentation()` tracks requests, latency, and status codes.
+- **Database Tracing**: `AddNpgsql()` captures PostgreSQL queries and connection details.
+- **Trace Export**: `AddOtlpExporter()` sends traces via OTLP protocol to the collector.
+- **Local Debugging**: `AddConsoleExporter()` logs traces to the console for quick validation.
 
-After starting the containers, initialize the database and start the web API:
+Now make sure you initialize the database and start the web API:
 
 ```bash
 dotnet ef database update --project src/BooksInventory.WebApi/BooksInventory.WebApi.csproj
 dotnet run --project src/BooksInventory.WebApi/BooksInventory.WebApi.csproj
 ```
 
-✅ Tip: Run the app and make a request to see traces printed in the console. This helps you verify instrumentation before wiring up Jaeger.
+✅ Tip: Execute some requests to see traces printed in the console. This helps you verify instrumentation before wiring up Jaeger.
 
 ```bash
 # ------------------------------------
@@ -207,25 +206,18 @@ Visit <http://localhost:16686> — you’ll land on the Jaeger UI. Once traces a
 
 ![jaeger-in-action]
 
-Try the following operations using the vscode REST client (see `BooksInventory.http` file):
+Execute the following REST operations to validate cache behavior:
 
-1. Add a book via `/addBook`.
-
+1. **POST `/addBook`** → Inserts a new book into the **DB**.  
    ![add-book-span]
 
-   - **POST `/addBook`** creates a new book and hits the DB.
-
-2. Fetch it via `/books/{id}`.
-
+2. **GET `/books/{id}`** (first request) → Cache **miss**, fetches from **DB**.  
    ![get-book-first-span]
 
-   - **GET `/books/{id}`** (first time) results in a cache miss and hits the DB.
-
-3. Fetch it again.
-
+3. **GET `/books/{id}`** (second request) → Cache **hit**, retrieves from **Redis** (no DB call).  
    ![get-book-second-span]
 
-   - **GET `/books/{id}`** (second time) hits the cache — much faster (no hit on the DB this time).
+This confirms caching is working — first retrieval queries the **DB**, while subsequent requests serve data **directly from cache**.
 
 ## Debugging with Tracing: Real-World Benefits
 
@@ -280,11 +272,11 @@ app.MapDelete("/books/{id}", async (int id, BooksInventoryDbContext db, HybridCa
 });
 ```
 
-Let's now look at the trace:
+**Let's check the trace:**
 
 ![delete-book-optimized-span]
 
-Yeap! Only one call to the database. Nice!
+Yes! The deletion now requires only **one database call**—a clear optimization.
 
 ## Bonus: Cache Behavior Verification with Redis CLI
 
@@ -335,42 +327,39 @@ Now trigger a `PUT` or `DELETE`, and you’ll see events like:
 
 This confirms your cache is being updated live — and gives you deep visibility into cache dynamics.
 
-## **Beyond Traces: Expanding Observability**
+## **Beyond Tracing: Expanding Observability**
 
-This episode focused on **tracing**, but observability extends far beyond that. To fully understand and optimize a system, we need to monitor key signals:
+Tracing is just the beginning—full observability requires **metrics**, **logs**, and **visualization**:
 
-| Signal       | Backend    | Purpose                                |
-| ------------ | ---------- | -------------------------------------- |
-| **Traces**   | Jaeger     | Understand request flow & latency      |
-| **Metrics**  | Prometheus | Monitor service health and performance |
-| **Logs**     | OpenSearch | Debug context for incidents            |
-| **🔭 Views** | Grafana    | Unified observability dashboard        |
+| Signal       | Backend    | Purpose                         |
+| ------------ | ---------- | ------------------------------- |
+| **Traces**   | Jaeger     | Track request flow & latency    |
+| **Metrics**  | Prometheus | Monitor service performance     |
+| **Logs**     | OpenSearch | Debug incidents & errors        |
+| **🔭 Views** | Grafana    | Unified observability dashboard |
 
-With **tracing in place**, it’s time to level up:
+### **Next Steps**
 
-### **What’s Next?**
+- **HybridCache Instrumentation**
 
-1. **Enhancing HybridCache**  
-   HybridCache doesn't have native OpenTelemetry instrumentation yet—can we extend it for better traceability?
+  - Extend HybridCache with OpenTelemetry for better traceability.
 
-2. **Exploring FusionCache**  
-   FusionCache provides a **drop-in HybridCache implementation** with built-in OpenTelemetry support. Want to see it in action?
+- **FusionCache Integration**
 
-3. **Adding Metrics & Logs**
+  - Leverage FusionCache for built-in OpenTelemetry support.
 
-   - Metrics: Integrate **Prometheus** for performance monitoring.
-   - Logs: Wire up **OpenSearch** for structured logging.
-   - Unified observability? Enter **Grafana**.
+- **Expand Monitoring**
 
-4. **Handling Race Conditions**  
-   Distributed consistency bugs are tricky.
+  - **Metrics** → Add Prometheus.
+  - **Logs** → Integrate OpenSearch.
+  - **Dashboards** → Visualize everything in Grafana.
 
-   - What happens if the cache and DB go out of sync under heavy load?
-   - How can **Locust** load tests + traces expose race conditions?
+- **Identify Race Conditions**
 
-5. **Observability in Tests**
-   - How do we verify tracing **inside integration tests**?
-   - Can **Testcontainers** + OpenTelemetry give us insights during testing?
+  - Use **Locust** load tests + tracing to detect cache-DB sync issues.
+
+- **Observability in Tests**
+  - Validate tracing in **integration tests** using Testcontainers + OpenTelemetry.
 
 Observability is **not just about seeing—but about understanding**.
 
@@ -386,4 +375,6 @@ Check out the full code and episodes in the [GitHub repository].
 [delete-book-span]: ../.assets/delete-book-span.png
 [delete-book-optimized-span]: ../.assets/delete-book-optimized-span.png
 [A Hands-On Guide to Modern Software Development]: ../README.md
-[GitHub repository]: https://github.com/dorinandreidragan/books-inventory
+[GitHub repository]: https://github.com/dorinandreidragan/books-inventory/tree/episode/04-opentelemetry-tracing
+[OpenTelemetry]: https://opentelemetry.io/
+[Jaeger]: https://www.jaegertracing.io/
