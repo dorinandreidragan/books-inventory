@@ -90,7 +90,7 @@ The `docs` folder contains detailed guides and tutorials:
 - **Episode 1**: [Testing Minimal Web APIs with ASP.NET](./docs/01-testing-minimal-web-api.md)
 - **Episode 2**: [Get Ready for Testcontainers](./docs/02-testcontainers-postgresql.md)
 - **Episode 3**: [HybridCache & Redis: Cache Smarter, Not Harder for ASP.NET APIs](./docs/03-testcontainers-redis.md)
-- _Comming Soon_: _Episode 4_: _If you can't observe it, you can't operate it_
+- **Episode 4**: [If you can't observe it, you can't operate it](./docs/04-opentelemetry-tracing.md)
 
 More episodes will be added to cover advanced topics in software development and system design.
 

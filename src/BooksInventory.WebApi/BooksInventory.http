@@ -45,3 +45,31 @@ Accept: application/json
 # Test GET /books/search by ISBN
 GET {{baseUrl}}/books/search?isbn=9780135957059 HTTP/1.1
 Accept: application/json
+
+# Test GET /books/search by title
+GET {{baseUrl}}/books/search?title=The Pragmatic Programmer HTTP/1.1
+Accept: application/json
+
+###
+
+# Test GET /books/search by author
+GET {{baseUrl}}/books/search?author=Andy Hunt HTTP/1.1
+Accept: application/json
+
+###
+
+# Test GET /books/search by ISBN
+GET {{baseUrl}}/books/search?isbn=9780135957059 HTTP/1.1
+Accept: application/json
+
+###
+
+# Test PUT /books/{id} (replace {id} with a valid BookId from the POST response)
+PUT {{baseUrl}}/books/1 HTTP/1.1
+Content-Type: application/json
+
+{
+  "title": "The Pragmatic Programmer - Updated",
+  "author": "Andy Hunt and Dave Thomas",
+  "isbn": "9780135957059"
+}
