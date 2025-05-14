@@ -203,7 +203,7 @@ This proves that tracing is working — we see both HTTP-level and database-leve
 
 ## Visualize Traces in Jaeger
 
-Visit <http://localhost:16686> — you’ll land on the Jaeger UI. Check Jaeger’s search page to trace each request’s journey as you see in the gif below:
+Visit <http://localhost:16686> — you’ll land on the Jaeger UI. Once traces are generated, you can inspect them using Jaeger’s UI. Below is an example of how it looks in action:
 
 ![jaeger-in-action]
 
