@@ -3,17 +3,46 @@ using BooksInventory.WebApi;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Hybrid;
 
+using Npgsql;
+
+using OpenTelemetry.Logs;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
+
 var builder = WebApplication.CreateBuilder(args);
+
+// Add service for db
 builder.Services.AddDbContext<BooksInventoryDbContext>(options =>
 {
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"));
 });
+
+// Add service for Redis using the same multiplexer
 builder.Services.AddStackExchangeRedisCache(options =>
 {
     options.Configuration = builder.Configuration.GetConnectionString("RedisConnection");
     options.InstanceName = "BooksInventoryCache:";
 });
+
 builder.Services.AddHybridCache();
+
+var service = ResourceBuilder
+    .CreateDefault()
+    .AddService("BooksInventory.WebApi")
+    .AddAttributes(
+    [
+        new("service.name", "BooksInventory.WebApi"),
+        new("service.namespace", "BooksInventory.WebApi"),
+    ]);
+
+builder.Services.AddOpenTelemetry()
+    .WithTracing(tracing => tracing
+        .SetResourceBuilder(service)
+        .AddAspNetCoreInstrumentation()
+        .AddNpgsql()
+        .AddConsoleExporter()
+        .AddOtlpExporter());
 
 var app = builder.Build();
 
@@ -103,16 +132,17 @@ app.MapGet("/books/search", async (string? title, string? author, string? isbn, 
 
 app.MapDelete("/books/{id}", async (int id, BooksInventoryDbContext db, HybridCache cache) =>
 {
-    var book = await db.Books.FindAsync(id);
-    if (book is null)
+    // DELETE: only one roundtrip to db.
+    var rowsAffected = await db.Books
+        .Where(b => b.Id == id)
+        .ExecuteDeleteAsync();
+
+    if (rowsAffected == 0)
     {
         return Results.NotFound(new { Message = "Book not found", BookId = id });
     }
 
-    db.Books.Remove(book);
-    await db.SaveChangesAsync();
-
-    // Remove the entry from the cache
+    // Remove the entry from the cache.
     await cache.RemoveAsync($"book_{id}");
 
     return Results.NoContent();
