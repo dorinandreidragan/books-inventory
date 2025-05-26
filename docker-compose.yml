@@ -42,7 +42,7 @@ services:
     container_name: otel_collector
     command: ["--config=/etc/otel-collector.yml"]
     volumes:
-      - ./src/telemetry/otel-collector.yml:/etc/otel-collector.yml
+      - ./tools/telemetry/otel-collector.yml:/etc/otel-collector.yml
     ports:
       - "4317:4317" # expose this on the host if you run the web app locally
     depends_on:

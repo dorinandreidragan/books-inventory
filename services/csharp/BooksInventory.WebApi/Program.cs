@@ -41,12 +41,11 @@ builder.Services.AddOpenTelemetry()
         .SetResourceBuilder(service)
         .AddAspNetCoreInstrumentation()
         .AddNpgsql()
-        .AddConsoleExporter()
         .AddOtlpExporter());
 
 var app = builder.Build();
 
-app.MapPost("/addBook", async (AddBookRequest request, BooksInventoryDbContext db) =>
+app.MapPost("/books", async (AddBookRequest request, BooksInventoryDbContext db) =>
 {
     var book = new Book
     {
@@ -204,7 +203,7 @@ static void ValidatePaginationValues(int currentPage, int currentPageSize)
 }
 
 public record AddBookRequest(string Title, string Author, string ISBN);
-public record AddBookResponse(int BookId);
+public record AddBookResponse(int Id);
 public record Book
 {
     public int Id { get; init; }

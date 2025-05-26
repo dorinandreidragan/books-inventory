@@ -52,7 +52,7 @@ public class BooksInventoryTests : IAsyncLifetime
         response.EnsureSuccessStatusCode();
         var result = await response.DeserializeAsync<AddBookResponse>();
         result?.Should().NotBeNull();
-        result!.BookId.Should().BeGreaterThan(0);
+        result!.Id.Should().BeGreaterThan(0);
     }
 
     [Fact]
@@ -209,7 +209,7 @@ public class BooksInventoryTests : IAsyncLifetime
     {
         var addRequest = new AddBookRequest(title, author, isbn);
         var addResponse = await this.client.PostAsync("/addBook", addRequest.GetHttpContent());
-        var bookId = (await addResponse.DeserializeAsync<AddBookResponse>())!.BookId;
+        var bookId = (await addResponse.DeserializeAsync<AddBookResponse>())!.Id;
         return bookId;
     }
 

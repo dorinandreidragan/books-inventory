@@ -2,7 +2,7 @@
 @baseUrl = http://localhost:5000
 
 # Test POST /addBook
-POST {{baseUrl}}/addBook HTTP/1.1
+POST {{baseUrl}}/books HTTP/1.1
 Content-Type: application/json
 
 {
@@ -20,7 +20,7 @@ Accept: application/json
 ###
 
 # Test DELETE /books/{id} (replace {id} with a valid BookId from the POST response)
-DELETE {{baseUrl}}/books/1 HTTP/1.1
+DELETE {{baseUrl}}/books/149 HTTP/1.1
 
 ###
 
