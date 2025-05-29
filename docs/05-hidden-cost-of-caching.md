@@ -271,8 +271,8 @@ Choose based on what breaks when data is stale.
 
 [Architecture Load Testing]: ../../.assets/architecture-load-testing.svg
 [Locust]: https://locust.io
-[Stale Caching]: ../../.assets/stale-caching.svg
-[Locust stale cache load test]: ../../.assets/stale-cache-load-test.gif
-[Locust stale cache load test failures]: ../../.assets/stale-cache-load-test-failures.png
-[Locust stale cache wave load test]: ../../.assets/stale-cache-wave-load-test.gif
+[Stale Caching]: ../.assets/stale-caching.svg
+[Locust stale cache load test]: ../.assets/stale-cache-load-test.gif
+[Locust stale cache load test failures]: ../.assets/stale-cache-load-test-failures.png
+[Locust stale cache wave load test]: ../.assets/stale-cache-wave-load-test.gif
 [GitHub repository]: https://github.com/dorinandreidragan/books-inventory/tree/episode/05-hidden-cost-of-caching
