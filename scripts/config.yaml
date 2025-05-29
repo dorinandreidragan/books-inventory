@@ -1,0 +1,18 @@
+source_directory: "../"
+output_file: "concatenated_output.txt"
+file_extensions:
+  - ".cs"
+  - ".csproj"
+  - ".props"
+  - ".yml"
+  - ".md"
+  - ".http"
+exclude_files:
+  - "../docs/04a*"
+  - "../docs/04b*"
+  - "../docs/04c*"
+  - "scripts/*"
+  - ".vscode/*"
+  - ".github"
+  - ".assets"
+  - "../src/BooksInventory.WebApi/Migrations/*"

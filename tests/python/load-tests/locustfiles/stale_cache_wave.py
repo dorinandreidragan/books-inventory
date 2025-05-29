@@ -3,13 +3,8 @@ from locust import LoadTestShape
 
 
 class WaveShape(LoadTestShape):
-    """
-    A shape that simulates waves of users.
-    Each wave lasts for wave_duration seconds and has a different user count.
-    """
-
-    wave_users = [5, 20, 5, 50, 5, 80, 5]  # Users per wave
-    wave_duration = 10  # seconds per wave
+    wave_users = [3, 30, 3, 60, 3, 90, 3]  # Users per wave
+    wave_duration = 20  # seconds per wave
 
     def tick(self):
         run_time = self.get_run_time()

@@ -1,52 +1,12 @@
-import requests
 import time
 import threading
-import common.config as config
+import events_handler
 
-from locust import FastHttpUser, task, between, events
-from locust.runners import WorkerRunner
+from locust import FastHttpUser, task, between
 from common.api import Api
 
-global_seq = 0
-seq_lock = threading.Lock()
-book_ids = []
-
-
-@events.test_start.add_listener
-def on_test_start(environment, **kwargs):
-    if isinstance(environment.runner, WorkerRunner):
-        return
-    global book_ids
-    book_ids.clear()
-    for i in range(1):
-        payload = {
-            "title": f"StaleCache Book {i+1}",
-            "author": "StaleCacheUser",
-            "isbn": "1234567890123",
-        }
-        try:
-            resp = requests.post(f"{config.API_URL}", json=payload)
-            resp.raise_for_status()
-            data = resp.json()
-            book_id = data.get("id")
-            if book_id is not None:
-                book_ids.append(book_id)
-        except Exception as e:
-            print(f"[SETUP] Failed to add book {payload['title']}: {e}")
-
-
-@events.test_stop.add_listener
-def on_test_stop(environment, **kwargs):
-    if isinstance(environment.runner, WorkerRunner):
-        return
-    global book_ids
-    for book_id in book_ids:
-        try:
-            resp = requests.delete(f"{config.API_URL}/{book_id}")
-            resp.raise_for_status()
-        except Exception as e:
-            print(f"[CLEANUP] Exception deleting book {book_id}: {e}")
-    book_ids.clear()
+global_counter = 0
+counter_lock = threading.Lock()
 
 
 class StaleCacheUser(FastHttpUser):
@@ -64,14 +24,14 @@ class StaleCacheUser(FastHttpUser):
         book_id = self.books[0]["id"]
         user_id = self.environment.runner.user_count
 
-        # Increment seq
-        global global_seq
-        with seq_lock:
-            global_seq += 1
-            my_seq = global_seq
+        # Increment counter
+        global global_counter
+        with counter_lock:
+            global_counter += 1
+            my_counter = global_counter
 
         # Write
-        my_title = f"user:{user_id}-title-{my_seq}"
+        my_title = f"user:{user_id}-title-{my_counter}"
         payload = {"title": my_title, "author": "StaleCache", "isbn": "1234567890123"}
         self.api.update_book(book_id, payload)
         time.sleep(0.05)
@@ -80,13 +40,13 @@ class StaleCacheUser(FastHttpUser):
         data = self.api.get_book(book_id)
         fetched_title = data.get("title", "")
 
-        # Parse sequence
-        fetched_seq = int(fetched_title.split("-")[-1])
+        # Parse counter
+        fetched_counter = int(fetched_title.split("-")[-1])
 
         # Log stale cache
-        if fetched_seq < my_seq:
+        if fetched_counter < my_counter:
             self.environment.runner.stats.log_error(
                 "GET",
                 f"/books/{book_id}",
-                f"⚠️ Stale cache detected! Updated title: '{my_title}', but read '{fetched_title}' (fetched_seq: {fetched_seq} < my_seq: {my_seq})",
+                f"⚠️ Stale cache detected! Updated title: '{my_title}', but read '{fetched_title}' (my_counter: {my_counter} < fetched_counter: {fetched_counter})",
             )

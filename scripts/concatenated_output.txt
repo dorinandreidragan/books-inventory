@@ -1,0 +1,3099 @@
+
+## OTHER FILES
+
+### FILE START: docker-compose.yml
+# File Path: ../docker-compose.yml
+services:
+  database:
+    image: postgres:15-alpine
+    container_name: books_inventory_db
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: books_inventory
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "user", "-d", "books_inventory"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7.0-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - redis-data:/data
+
+  # Jaeger
+  jaeger:
+    image: jaegertracing/jaeger:2.5.0
+    container_name: jaeger
+    ports:
+      - "16686:16686" # Jaeger UI
+
+  # OpenTelemetry Collector
+  otel-collector:
+    image: ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib:0.125.0
+    container_name: otel_collector
+    command: ["--config=/etc/otel-collector.yml"]
+    volumes:
+      - ./src/telemetry/otel-collector.yml:/etc/otel-collector.yml
+    ports:
+      - "4317:4317" # expose this on the host if you run the web app locally
+    depends_on:
+      jaeger:
+        condition: service_started
+
+volumes:
+  postgres-data:
+  redis-data:
+
+
+### FILE END: docker-compose.yml
+
+### FILE START: Directory.Packages.props
+# File Path: ../Directory.Packages.props
+<Project>
+  <PropertyGroup>
+    <!-- Enable central package management, https://learn.microsoft.com/en-us/nuget/consume-packages/Central-Package-Management -->
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageVersion Include="coverlet.collector" Version="6.0.2" />
+    <PackageVersion Include="FluentAssertions" Version="8.2.0" />
+    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="9.0.3" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="9.0.4" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.4">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageVersion>
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="9.0.4" />
+    <PackageVersion Include="Microsoft.Extensions.Caching.Hybrid" Version="9.4.0" />
+    <PackageVersion Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="9.0.2" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.4" />
+    <PackageVersion Include="Npgsql.OpenTelemetry" Version="9.0.3" />
+    <PackageVersion Include="OpenTelemetry.Exporter.Console" Version="1.12.0" />
+    <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.12.0" />
+    <PackageVersion Include="OpenTelemetry.Exporter.Prometheus.AspNetCore" Version="1.11.2-beta.1" />
+    <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.12.0" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.11.1" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.11.1" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.StackExchangeRedis" Version="1.11.0-beta.2" />
+    <PackageVersion Include="Scrutor" Version="6.0.1" />
+    <PackageVersion Include="TestContainers.PostgreSql" Version="4.3.0" />
+    <PackageVersion Include="TestContainers.Redis" Version="4.4.0" />
+    <PackageVersion Include="xunit" Version="2.9.2" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="2.8.2" />
+    <PackageVersion Include="ZiggyCreatures.FusionCache" Version="2.2.0" />
+    <PackageVersion Include="ZiggyCreatures.FusionCache.OpenTelemetry" Version="2.2.0" />
+    <PackageVersion Include="ZiggyCreatures.FusionCache.Serialization.SystemTextJson" Version="2.2.0" />
+  </ItemGroup>
+</Project>
+
+### FILE END: Directory.Packages.props
+
+### FILE START: ci.yml
+# File Path: ../.github/workflows/ci.yml
+name: BooksInventory CI
+
+on:
+  push:
+    branches:
+      - main
+      - "feature/**" # Include feature branches
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "9.0"
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build solution
+        run: dotnet build --no-restore
+
+      - name: Run tests
+        run: dotnet test --logger "trx;LogFileName=test-results.trx" --no-build --verbosity normal
+
+      - name: Upload XUnit test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: TestResults
+          path: "**/test-results.trx"
+
+      - name: Report Test Results
+        uses: dorny/test-reporter@v2
+        with:
+          artifact: TestResults
+          name: XUnit Tests
+          path: "**/test-results.trx"
+          reporter: dotnet-trx
+
+
+### FILE END: ci.yml
+
+### FILE START: BooksInventory.WebApi.Tests.csproj.nuget.g.props
+# File Path: ../tests/BooksInventory.WebApi.Tests/obj/BooksInventory.WebApi.Tests.csproj.nuget.g.props
+﻿<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<Project ToolsVersion="14.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup Condition=" '$(ExcludeRestorePackageImports)' != 'true' ">
+    <RestoreSuccess Condition=" '$(RestoreSuccess)' == '' ">True</RestoreSuccess>
+    <RestoreTool Condition=" '$(RestoreTool)' == '' ">NuGet</RestoreTool>
+    <ProjectAssetsFile Condition=" '$(ProjectAssetsFile)' == '' ">$(MSBuildThisFileDirectory)project.assets.json</ProjectAssetsFile>
+    <NuGetPackageRoot Condition=" '$(NuGetPackageRoot)' == '' ">/home/ddragan/.nuget/packages/</NuGetPackageRoot>
+    <NuGetPackageFolders Condition=" '$(NuGetPackageFolders)' == '' ">/home/ddragan/.nuget/packages/</NuGetPackageFolders>
+    <NuGetProjectStyle Condition=" '$(NuGetProjectStyle)' == '' ">PackageReference</NuGetProjectStyle>
+    <NuGetToolVersion Condition=" '$(NuGetToolVersion)' == '' ">6.12.2</NuGetToolVersion>
+  </PropertyGroup>
+  <ItemGroup Condition=" '$(ExcludeRestorePackageImports)' != 'true' ">
+    <SourceRoot Include="/home/ddragan/.nuget/packages/" />
+  </ItemGroup>
+  <ImportGroup Condition=" '$(ExcludeRestorePackageImports)' != 'true' ">
+    <Import Project="$(NuGetPackageRoot)xunit.runner.visualstudio/2.8.2/build/net6.0/xunit.runner.visualstudio.props" Condition="Exists('$(NuGetPackageRoot)xunit.runner.visualstudio/2.8.2/build/net6.0/xunit.runner.visualstudio.props')" />
+    <Import Project="$(NuGetPackageRoot)xunit.core/2.9.2/build/xunit.core.props" Condition="Exists('$(NuGetPackageRoot)xunit.core/2.9.2/build/xunit.core.props')" />
+    <Import Project="$(NuGetPackageRoot)microsoft.entityframeworkcore/9.0.4/buildTransitive/net8.0/Microsoft.EntityFrameworkCore.props" Condition="Exists('$(NuGetPackageRoot)microsoft.entityframeworkcore/9.0.4/buildTransitive/net8.0/Microsoft.EntityFrameworkCore.props')" />
+    <Import Project="$(NuGetPackageRoot)microsoft.testplatform.testhost/17.12.0/build/netcoreapp3.1/Microsoft.TestPlatform.TestHost.props" Condition="Exists('$(NuGetPackageRoot)microsoft.testplatform.testhost/17.12.0/build/netcoreapp3.1/Microsoft.TestPlatform.TestHost.props')" />
+    <Import Project="$(NuGetPackageRoot)microsoft.codecoverage/17.12.0/build/netstandard2.0/Microsoft.CodeCoverage.props" Condition="Exists('$(NuGetPackageRoot)microsoft.codecoverage/17.12.0/build/netstandard2.0/Microsoft.CodeCoverage.props')" />
+    <Import Project="$(NuGetPackageRoot)microsoft.net.test.sdk/17.12.0/build/netcoreapp3.1/Microsoft.NET.Test.Sdk.props" Condition="Exists('$(NuGetPackageRoot)microsoft.net.test.sdk/17.12.0/build/netcoreapp3.1/Microsoft.NET.Test.Sdk.props')" />
+    <Import Project="$(NuGetPackageRoot)microsoft.extensions.configuration.usersecrets/9.0.3/buildTransitive/net8.0/Microsoft.Extensions.Configuration.UserSecrets.props" Condition="Exists('$(NuGetPackageRoot)microsoft.extensions.configuration.usersecrets/9.0.3/buildTransitive/net8.0/Microsoft.Extensions.Configuration.UserSecrets.props')" />
+  </ImportGroup>
+  <PropertyGroup Condition=" '$(ExcludeRestorePackageImports)' != 'true' ">
+    <Pkgxunit_analyzers Condition=" '$(Pkgxunit_analyzers)' == '' ">/home/ddragan/.nuget/packages/xunit.analyzers/1.16.0</Pkgxunit_analyzers>
+  </PropertyGroup>
+</Project>
+
+### FILE END: BooksInventory.WebApi.Tests.csproj.nuget.g.props
+
+### FILE START: BooksInventory.http
+# File Path: ../src/BooksInventory.WebApi/BooksInventory.http
+# Base URL
+@baseUrl = http://localhost:5000
+
+# Test POST /addBook
+POST {{baseUrl}}/addBook HTTP/1.1
+Content-Type: application/json
+
+{
+    "Title": "The Pragmatic Programmer",
+    "Author": "Andy Hunt and Dave Thomas",
+    "ISBN": "9780135957059"
+}
+
+###
+
+# Test GET /books/{id} (replace {id} with a valid BookId from the POST response)
+GET {{baseUrl}}/books/44 HTTP/1.1
+Accept: application/json
+
+###
+
+# Test DELETE /books/{id} (replace {id} with a valid BookId from the POST response)
+DELETE {{baseUrl}}/books/43 HTTP/1.1
+
+###
+
+# Test GET /books
+GET {{baseUrl}}/books HTTP/1.1
+Accept: application/json
+
+###
+
+# Test GET /books/search by title
+GET {{baseUrl}}/books/search?title=The Pragmatic Programmer HTTP/1.1
+Accept: application/json
+
+###
+
+# Test GET /books/search by author
+GET {{baseUrl}}/books/search?author=Andy Hunt HTTP/1.1
+Accept: application/json
+
+###
+
+# Test GET /books/search by ISBN
+GET {{baseUrl}}/books/search?isbn=9780135957059 HTTP/1.1
+Accept: application/json
+
+# Test GET /books/search by title
+GET {{baseUrl}}/books/search?title=The Pragmatic Programmer HTTP/1.1
+Accept: application/json
+
+###
+
+# Test GET /books/search by author
+GET {{baseUrl}}/books/search?author=Andy Hunt HTTP/1.1
+Accept: application/json
+
+###
+
+# Test GET /books/search by ISBN
+GET {{baseUrl}}/books/search?isbn=9780135957059 HTTP/1.1
+Accept: application/json
+
+###
+
+# Test PUT /books/{id} (replace {id} with a valid BookId from the POST response)
+PUT {{baseUrl}}/books/43 HTTP/1.1
+Content-Type: application/json
+
+{
+    "Title": "The Pragmatic Programmer - Updated",
+    "Author": "Andy Hunt and Dave Thomas",
+    "ISBN": "9780135957059"
+}
+
+### FILE END: BooksInventory.http
+
+### FILE START: BooksInventory.WebApi.csproj.nuget.g.props
+# File Path: ../src/BooksInventory.WebApi/obj/BooksInventory.WebApi.csproj.nuget.g.props
+﻿<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<Project ToolsVersion="14.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup Condition=" '$(ExcludeRestorePackageImports)' != 'true' ">
+    <RestoreSuccess Condition=" '$(RestoreSuccess)' == '' ">True</RestoreSuccess>
+    <RestoreTool Condition=" '$(RestoreTool)' == '' ">NuGet</RestoreTool>
+    <ProjectAssetsFile Condition=" '$(ProjectAssetsFile)' == '' ">$(MSBuildThisFileDirectory)project.assets.json</ProjectAssetsFile>
+    <NuGetPackageRoot Condition=" '$(NuGetPackageRoot)' == '' ">/home/ddragan/.nuget/packages/</NuGetPackageRoot>
+    <NuGetPackageFolders Condition=" '$(NuGetPackageFolders)' == '' ">/home/ddragan/.nuget/packages/</NuGetPackageFolders>
+    <NuGetProjectStyle Condition=" '$(NuGetProjectStyle)' == '' ">PackageReference</NuGetProjectStyle>
+    <NuGetToolVersion Condition=" '$(NuGetToolVersion)' == '' ">6.12.2</NuGetToolVersion>
+  </PropertyGroup>
+  <ItemGroup Condition=" '$(ExcludeRestorePackageImports)' != 'true' ">
+    <SourceRoot Include="/home/ddragan/.nuget/packages/" />
+  </ItemGroup>
+  <ImportGroup Condition=" '$(ExcludeRestorePackageImports)' != 'true' ">
+    <Import Project="$(NuGetPackageRoot)microsoft.entityframeworkcore/9.0.4/buildTransitive/net8.0/Microsoft.EntityFrameworkCore.props" Condition="Exists('$(NuGetPackageRoot)microsoft.entityframeworkcore/9.0.4/buildTransitive/net8.0/Microsoft.EntityFrameworkCore.props')" />
+    <Import Project="$(NuGetPackageRoot)microsoft.codeanalysis.analyzers/3.3.4/buildTransitive/Microsoft.CodeAnalysis.Analyzers.props" Condition="Exists('$(NuGetPackageRoot)microsoft.codeanalysis.analyzers/3.3.4/buildTransitive/Microsoft.CodeAnalysis.Analyzers.props')" />
+    <Import Project="$(NuGetPackageRoot)microsoft.entityframeworkcore.design/9.0.4/build/net8.0/Microsoft.EntityFrameworkCore.Design.props" Condition="Exists('$(NuGetPackageRoot)microsoft.entityframeworkcore.design/9.0.4/build/net8.0/Microsoft.EntityFrameworkCore.Design.props')" />
+  </ImportGroup>
+  <PropertyGroup Condition=" '$(ExcludeRestorePackageImports)' != 'true' ">
+    <PkgMicrosoft_CodeAnalysis_Analyzers Condition=" '$(PkgMicrosoft_CodeAnalysis_Analyzers)' == '' ">/home/ddragan/.nuget/packages/microsoft.codeanalysis.analyzers/3.3.4</PkgMicrosoft_CodeAnalysis_Analyzers>
+  </PropertyGroup>
+</Project>
+
+### FILE END: BooksInventory.WebApi.csproj.nuget.g.props
+
+### FILE START: msbuild.build.BooksInventory.WebApi.props
+# File Path: ../src/BooksInventory.WebApi/obj/Debug/net9.0/staticwebassets/msbuild.build.BooksInventory.WebApi.props
+﻿<Project>
+  <Import Project="Microsoft.AspNetCore.StaticWebAssetEndpoints.props" />
+  <Import Project="Microsoft.AspNetCore.StaticWebAssets.props" />
+</Project>
+
+### FILE END: msbuild.build.BooksInventory.WebApi.props
+
+### FILE START: msbuild.buildMultiTargeting.BooksInventory.WebApi.props
+# File Path: ../src/BooksInventory.WebApi/obj/Debug/net9.0/staticwebassets/msbuild.buildMultiTargeting.BooksInventory.WebApi.props
+﻿<Project>
+  <Import Project="../build/BooksInventory.WebApi.props" />
+</Project>
+
+### FILE END: msbuild.buildMultiTargeting.BooksInventory.WebApi.props
+
+### FILE START: msbuild.buildTransitive.BooksInventory.WebApi.props
+# File Path: ../src/BooksInventory.WebApi/obj/Debug/net9.0/staticwebassets/msbuild.buildTransitive.BooksInventory.WebApi.props
+﻿<Project>
+  <Import Project="../buildMultiTargeting/BooksInventory.WebApi.props" />
+</Project>
+
+### FILE END: msbuild.buildTransitive.BooksInventory.WebApi.props
+
+### FILE START: otel-collector.yml
+# File Path: ../src/telemetry/otel-collector.yml
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: otel-collector:4317
+      http:
+        endpoint: otel-collector:4318
+
+exporters:
+  otlp:
+    endpoint: "jaeger:4317"
+    tls:
+      insecure: true
+
+processors:
+  batch:
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlp]
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlp]
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlp]
+
+
+### FILE END: otel-collector.yml
+
+## DOCUMENTATION
+
+### FILE START: README.md
+# File Path: ../README.md
+# 📚 Books Inventory: A Hands-On Guide to Modern Software Development
+
+![Build Status](https://github.com/dorinandreidragan/books-inventory/actions/workflows/ci.yml/badge.svg)
+
+## 🚀 Introduction
+
+The **Books Inventory** repository is a hands-on demonstration of modern software development and
+system design techniques using .NET and a variety of tools. This project serves as a learning
+resource for developers who want to explore best practices in building, testing, and deploying
+robust web applications.
+
+The repository showcases:
+
+- 🛠️ Building a minimal Web API with ASP.NET.
+- ✅ Writing clean and effective integration tests.
+- 🐳 Leveraging tools like Testcontainers for advanced testing scenarios.
+- 🏗️ Applying modern system design principles.
+
+Stay tuned for more episodes as we continue to expand this repository! 🚀
+
+## 🏁 Getting Started
+
+To set up your local environment and test the REST API, follow these steps:
+
+1. Clone the repository:
+
+   ```bash
+   git clone https://github.com/dorinandreidragan/books-inventory.git
+   ```
+
+2. Navigate to the project directory:
+
+   ```bash
+   cd books-inventory
+   ```
+
+3. Start the required services using Docker Compose:
+
+   ```bash
+   docker-compose up -d
+   ```
+
+4. Initialize the database using the `dotnet ef` tool:
+
+   ```bash
+   dotnet ef database update --project src/BooksInventory.WebApi/BooksInventory.WebApi.csproj
+   ```
+
+5. Build and run the application:
+
+   ```bash
+   dotnet run --project src/BooksInventory.WebApi/BooksInventory.WebApi.csproj
+   ```
+
+6. Explore the API using the provided HTTP file:
+
+   Open `BooksInventory.http` in your favorite HTTP client (e.g., VS Code REST Client) to test the API
+   endpoints.
+
+## 🏗️ Building
+
+To build the project, ensure you have the .NET SDK installed. Then, run the following command:
+
+```bash
+ dotnet build
+```
+
+## 🧪 Testing
+
+Run the tests using the following command:
+
+```bash
+ dotnet test
+```
+
+The tests include:
+
+- 🔍 Integration tests for the Web API.
+- 🐳 Tests leveraging Testcontainers for database interactions.
+
+## 🔄 Continuous Integration
+
+This repository uses GitHub Actions for Continuous Integration (CI). The CI pipeline is defined in
+the `.github/workflows/ci.yml` file. Every pull request and commit to the main branch triggers the CI pipeline automatically, ensuring that the codebase remains stable and reliable.
+
+## 📖 Documentation
+
+The `docs` folder contains detailed guides and tutorials:
+
+- **Episode 1**: [Testing Minimal Web APIs with ASP.NET](./docs/01-testing-minimal-web-api.md)
+- **Episode 2**: [Get Ready for Testcontainers](./docs/02-testcontainers-postgresql.md)
+- **Episode 3**: [HybridCache & Redis: Cache Smarter, Not Harder for ASP.NET APIs](./docs/03-testcontainers-redis.md)
+- _Comming Soon_: _Episode 4_: _If you can't observe it, you can't operate it_
+
+More episodes will be added to cover advanced topics in software development and system design.
+
+## ✨ Features
+
+- **ASP.NET Minimal Web API**: A lightweight and modern approach to building web APIs.
+- **Integration Testing**: Comprehensive tests to ensure the reliability of the application.
+- **Testcontainers**: Simplified testing with containerized dependencies like PostgreSQL.
+- **System Design**: Practical examples of designing scalable and maintainable systems.
+
+## 🤝 Contribute
+
+Contributions are welcome! Whether it's fixing a bug, adding a new feature, or improving
+documentation, feel free to open issues or submit pull requests. Let's make this project even better
+together! 💡
+
+## 📜 License
+
+This project is licensed under the MIT License. See the [LICENSE](./LICENSE) file for details.
+
+## 🙌 Acknowledgments
+
+This repository is inspired by the need to provide practical, real-world examples of modern software
+development practices. Special thanks to the contributors and the open-source community for their
+support.
+
+
+### FILE END: README.md
+
+### FILE START: 01-testing-minimal-web-api.md
+# File Path: ../docs/01-testing-minimal-web-api.md
+# Testing Minimal Web APIs with ASP.NET: A Developer's Guide 🚀
+
+Writing tests for Web APIs isn’t always fun, but it doesn’t have to be hard. In this guide, I’ll show you how to write clean, effective integration tests for an ASP.NET minimal Web API, giving you a solid starting point to build on. 💡
+
+---
+
+## Setting Up the Stage 🛠️
+
+Before we get to testing, we need an API to test. We’re keeping it simple - a book inventory with in-memory storage. No databases, no heavy frameworks, just a clean ASP.NET minimal API.
+
+Run these commands to set up your solution:
+
+```bash
+dotnet new sln --name BooksInventory
+
+mkdir src tests
+dotnet new web -o src/BooksInventory.WebApi
+dotnet new xunit -o tests/BooksInventory.WebApi.Tests
+
+dotnet sln add src/BooksInventory.WebApi
+dotnet sln add tests/BooksInventory.WebApi.Tests
+
+dotnet add tests/BooksInventory.WebApi.Tests package FluentAssertions
+dotnet add tests/BooksInventory.WebApi.Tests package Microsoft.AspNetCore.Mvc.Testing
+```
+
+---
+
+## Understanding the Book Inventory API 📖
+
+The API provides two endpoints:
+
+- **POST `/addBook`**: Accepts a JSON payload with `Title`, `Author`, and `ISBN`, stores it, and returns a unique `BookId`.
+- **GET `/books/{id}`**: Fetches book details using `BookId`.
+
+Here’s our API in `Program.cs`:
+
+```csharp
+using System.Collections.Concurrent;
+
+var builder = WebApplication.CreateBuilder(args);
+var app = builder.Build();
+
+var books = new ConcurrentDictionary<string, Book>();
+
+app.MapPost("/addBook", (AddBookRequest request) =>
+{
+    var bookId = Guid.NewGuid().ToString();
+    var book = new Book(request.Title, request.Author, request.ISBN);
+
+    if (!books.TryAdd(bookId, book))
+    {
+        return Results.Problem("Failed to add book due to a concurrency issue.");
+    }
+
+    return Results.Ok(new AddBookResponse(bookId));
+});
+
+app.MapGet("/books/{id}", (string id) =>
+{
+    if (books.TryGetValue(id, out var book))
+    {
+        return Results.Ok(book);
+    }
+    return Results.NotFound(new { Message = "Book not found", BookId = id });
+});
+
+app.Run();
+
+public record AddBookRequest(string Title, string Author, string ISBN);
+public record AddBookResponse(string BookId);
+public record Book(string Title, string Author, string ISBN);
+
+// Explicitly define Program as partial for integration tests
+public partial class Program { }
+```
+
+---
+
+## Writing Integration Tests 🧪
+
+We’ll use **xUnit**, **WebApplicationFactory**, and **FluentAssertions**.
+
+Here's our test file, `BookInventoryTests.cs`:
+
+```csharp
+using FluentAssertions;
+using Microsoft.AspNetCore.Mvc.Testing;
+
+namespace BooksInventory.WebApi.Tests;
+
+public class BookInventoryTests : IClassFixture<WebApplicationFactory<Program>>
+{
+    private readonly HttpClient _client;
+
+    public BookInventoryTests(WebApplicationFactory<Program> factory)
+    {
+        _client = factory.CreateClient();
+    }
+
+    [Fact]
+    public async Task AddBook_ReturnsBookId()
+    {
+        var request = new AddBookRequest("AI Engineering", "Chip Huyen", "1098166302");
+        var content = request.GetHttpContent();
+
+        var response = await _client.PostAsync("/addBook", content);
+
+        response.EnsureSuccessStatusCode();
+        var result = await response.DeserializeAsync<AddBookResponse>();
+        result?.Should().NotBeNull();
+        result!.BookId.Should().NotBeNullOrEmpty();
+    }
+
+    [Fact]
+    public async Task GetBook_ReturnsBookDetails()
+    {
+        var addRequest = new AddBookRequest("AI Engineering", "Chip Huyen", "1234567890");
+        var addResponse = await _client.PostAsync("/addBook", addRequest.GetHttpContent());
+        var bookId = (await addResponse.DeserializeAsync<AddBookResponse>())?.BookId;
+
+        var getResponse = await _client.GetAsync($"/books/{bookId}");
+
+        getResponse.EnsureSuccessStatusCode();
+        var book = await getResponse.DeserializeAsync<Book>();
+        book.Should().BeEquivalentTo(
+            new Book(
+                addRequest.Title,
+                addRequest.Author,
+                addRequest.ISBN));
+    }
+}
+```
+
+---
+
+## Keep It Clean: Reusable Extension Methods ✨
+
+Testing should be easy, not filled with repeated code for serialization and deserialization. Let’s clean things up with some helper methods.
+
+```csharp
+using System.Text;
+using System.Text.Json;
+
+public static class HttpContentExtensions
+{
+    private static readonly JsonSerializerOptions SerializerOptions = new()
+    {
+        PropertyNameCaseInsensitive = true
+    };
+
+    public static async Task<T?> DeserializeAsync<T>(this HttpResponseMessage response)
+    {
+        return JsonSerializer.Deserialize<T>(
+            await response.Content.ReadAsStringAsync(),
+            SerializerOptions);
+    }
+
+    public static HttpContent GetHttpContent<T>(this T obj) where T : class
+    {
+        return new StringContent(
+            JsonSerializer.Serialize(obj),
+            Encoding.UTF8, "application/json");
+    }
+}
+```
+
+---
+
+## Manual Testing (for When You Just Want to Click a Button) 🔘
+
+Sometimes, you just want to test an API without writing a test case. That’s where REST Client in VS Code comes in. Create a `.http` file like this:
+
+```http
+POST {{baseUrl}}/addBook HTTP/1.1
+Content-Type: application/json
+
+{
+    "Title": "The Pragmatic Programmer",
+    "Author": "Andy Hunt and Dave Thomas",
+    "ISBN": "9780135957059"
+}
+
+###
+
+# Test GET /books/{id} (replace {id} with a valid BookId from the POST response)
+GET {{baseUrl}}/books/{id} HTTP/1.1
+Accept: application/json
+```
+
+Then run the requests right inside VS Code. No Postman required. 😎
+
+---
+
+## Wrapping Up: Integration Testing for Web APIs Can Be Fun 🎉
+
+Testing ASP.NET minimal Web APIs doesn’t have to be a painful experience. We kept things lightweight:
+
+- Used `WebApplicationFactory` for integration tests instead of mocking everything. 🔧
+- Avoided test boilerplate with `FluentAssertions` and extension methods. 💅
+- Leveraged **REST Client** for quAick manual testing. ⚡
+
+Try this approach in your own projects and see how much smoother your testing workflow becomes. Got a cool testing trick? Share it in the comments or hit me up on GitHub [here](https://github.com/dorinandreidragan/books-inventory/tree/episode/01-testing-minimal-web-api). 📬
+
+
+### FILE END: 01-testing-minimal-web-api.md
+
+### FILE START: 02-testcontainers-postgresql.md
+# File Path: ../docs/02-testcontainers-postgresql.md
+# Get Ready for Testcontainers: Taking Minimal Web API Testing to the Next Level 🚢
+
+In the [first article] of this series, we explored **how to test minimal web APIs in ASP.NET** using an in-memory dictionary. But now, it's time to level up!
+
+Instead of relying on a simple in-memory store, we’ll integrate a [**PostgreSQL**][postgreSQL] database and use [**Testcontainers**][Testcontainers] to run isolated, repeatable integration tests in containers. In this article, we will:
+
+1. Set up testing with [Testcontainers].
+2. Adjust our tests to use a real database.
+3. Watch our tests fail and fix them step-by-step.
+4. Create and apply migrations using `dotnet ef`.
+
+---
+
+## 🧪 From In-Memory to Containers
+
+In the first iteration, we tested using:
+
+- A `ConcurrentDictionary` to store books.
+- Lightweight [xUnit] tests with no external dependencies.
+
+Now, we’re upgrading to:
+
+- **Centralized NuGet package versioning** for cleaner dependency management.
+- **Testcontainers** to isolate tests in containers.
+- **PostgreSQL** using **EF Core** for persistence.
+
+---
+
+## 🧰 Centralizing Package Versions with Directory.Packages.props
+
+First, ensure that you manage package versions centrally across all projects. Run this command in the root of your repository:
+
+```bash
+dotnet new packagesprops
+```
+
+This creates a `Directory.Packages.props` file. Then, add the following content:
+
+```xml
+<Project>
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageVersion Include="coverlet.collector" Version="6.0.2" />
+    <PackageVersion Include="FluentAssertions" Version="8.2.0" />
+    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="9.0.3" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageVersion Include="xunit" Version="2.9.2" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="2.8.2" />
+  </ItemGroup>
+</Project>
+```
+
+After updating, run a `dotnet restore` to ensure your solution picks up the centralized versioning.
+
+See [Central Package Management | Microsoft Learn] for more details.
+
+---
+
+## 🔌 Project Setup
+
+Ensure your project files no longer include version information, since this is now defined in `Directory.Packages.props`. Your `*.csproj` files should look like this:
+
+### 📘 Web API (`BooksInventory.WebApi.csproj`)
+
+```xml
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+</Project>
+```
+
+### 🧪 Tests (`BooksInventory.WebApi.Tests.csproj`)
+
+```xml
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="FluentAssertions" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\BooksInventory.WebApi\BooksInventory.WebApi.csproj" />
+  </ItemGroup>
+</Project>
+```
+
+---
+
+## 🧪 Writing Tests with Testcontainers
+
+This section shows how to write tests using [Testcontainers] while leveraging [xUnit] features for management of asynchronous initialization and shared setups. We use the following concepts from xUnit:
+
+- **IAsyncLifetime**: For asynchronous setup and teardown of test resources.
+- **CollectionDefinition**: To group tests that share the same setup/teardown logic.
+- **Collection**: To associate test classes with the shared collection, ensuring tests run in an isolated, consistent environment.
+
+See [Shared Context between Tests | xUnit.net] for more details.
+
+### Adding Required NuGet Packages
+
+**For the Test Project:**
+
+Add the [Testcontainers NuGet package] (which supports PostgreSQL) via:
+
+```bash
+dotnet add package TestContainers.PostgreSql --version 4.3.0
+```
+
+**For the Web API Project:**
+
+Add the following packages to integrate EF Core with PostgreSQL:
+
+```bash
+dotnet add package Npgsql.EntityFrameworkCore.PostgreSQL --version 9.0.4
+dotnet add package Microsoft.EntityFrameworkCore.Design --version 9.0.4
+dotnet add package Microsoft.EntityFrameworkCore --version 9.0.4
+```
+
+---
+
+## 🏗 Setting Up the Database Context
+
+First, update your `Book` record to include an immutable `Id` property and use `init` accessors for all properties. The updated version looks like this:
+
+```csharp
+public record Book
+{
+    public int Id { get; init; }
+    public required string Title { get; init; }
+    public required string Author { get; init; }
+    public required string ISBN { get; init; }
+}
+```
+
+> **Note**: After updating the `Book` class, ensure that any code referencing it is modified accordingly so that the project compiles.
+
+Then, add the `BooksInventoryDbContext` class to the Web API project:
+
+```csharp
+using Microsoft.EntityFrameworkCore;
+
+namespace BooksInventory.WebApi;
+
+public class BooksInventoryDbContext : DbContext
+{
+    public DbSet<Book> Books { get; set; }
+
+    public BooksInventoryDbContext(DbContextOptions<BooksInventoryDbContext> options)
+        : base(options)
+    {
+    }
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<Book>()
+            .HasKey(u => u.Id);
+        modelBuilder.Entity<Book>()
+            .HasIndex(u => u.Title)
+            .IsUnique();
+    }
+}
+```
+
+---
+
+## 🚀 Integration Test Setup
+
+To prepare for integration testing, we introduce several helper classes and attributes.
+
+### PostgreSqlContainerFixture
+
+This fixture starts a PostgreSQL container using Testcontainers and applies all pending migrations to initialize the database schema.
+
+```csharp
+public class PostgreSqlContainerFixture : IAsyncLifetime
+{
+    public PostgreSqlContainer Postgres { get; private set; }
+
+    public PostgreSqlContainerFixture()
+    {
+        Postgres = new PostgreSqlBuilder()
+            .WithImage("postgres:latest")
+            .Build();
+    }
+
+    public async Task InitializeAsync()
+    {
+        await Postgres.StartAsync();
+
+        // Ensure that the database schema is created by applying migrations.
+        var options = new DbContextOptionsBuilder<BooksInventoryDbContext>()
+            .UseNpgsql(Postgres.GetConnectionString())
+            .Options;
+
+        using var context = new BooksInventoryDbContext(options);
+        await context.Database.MigrateAsync();
+    }
+
+    public Task DisposeAsync() => Postgres.DisposeAsync().AsTask();
+}
+```
+
+_Usage Explanation_:
+
+The `PostgreSqlContainerFixture` sets up a PostgreSQL container for the test run and applies migrations so that the database mirrors the production schema.
+
+---
+
+### CustomWebApplicationFactory
+
+By extending `WebApplicationFactory`, this class configures the test host to use PostgreSQL instead of the default in-memory store. The override in `ConfigureWebHost` replaces the default DB context registration with one that uses the container’s connection string.
+
+```csharp
+public class CustomWebApplicationFactory : WebApplicationFactory<Program>
+{
+    private readonly string postgreSqlConnectionString;
+
+    public CustomWebApplicationFactory(string postgreSqlConnectionString)
+    {
+        this.postgreSqlConnectionString = postgreSqlConnectionString;
+    }
+
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        // Overwrite the existing DB context registration so that tests use the PostgreSQL container.
+        builder.ConfigureServices(services =>
+        {
+            services.AddDbContext<BooksInventoryDbContext>(options =>
+            {
+                options.UseNpgsql(this.postgreSqlConnectionString);
+            });
+        });
+    }
+}
+```
+
+_Usage Explanation_:
+
+This abstraction hides the details of database registration during tests, keeping test classes clean while ensuring that the Web API connects to the proper PostgreSQL instance.
+
+---
+
+### Test Collection and Class Setup
+
+We then define a collection to share our PostgreSQL container fixture and apply it to our test classes:
+
+```csharp
+[CollectionDefinition(nameof(IntegrationTestsCollection))]
+public class IntegrationTestsCollection : ICollectionFixture<PostgreSqlContainerFixture> {}
+
+[Collection(nameof(IntegrationTestsCollection))]
+public class BooksInventoryTests : IAsyncLifetime
+{
+    private readonly CustomWebApplicationFactory factory;
+    private readonly HttpClient client;
+    private readonly BooksInventoryDbContext dbContext;
+
+    public BooksInventoryTests(PostgreSqlContainerFixture fixture)
+    {
+        this.factory = new CustomWebApplicationFactory(fixture.Postgres.GetConnectionString());
+        this.client = this.factory.CreateClient();
+
+        // Create a scope to retrieve a scoped instance of the DB context.
+        // This allows direct interaction with the database for setup and teardown.
+        var scope = this.factory.Services.CreateScope();
+        dbContext = scope.ServiceProvider.GetRequiredService<BooksInventoryDbContext>();
+    }
+
+    public async Task InitializeAsync()
+    {
+        // Clean the database to ensure test isolation.
+        dbContext.Books.RemoveRange(dbContext.Books);
+        await dbContext.SaveChangesAsync();
+    }
+
+    // Dispose resources to maintain isolation after each test run.
+    public Task DisposeAsync()
+    {
+        this.client.Dispose();
+        this.factory.Dispose();
+        return Task.CompletedTask;
+    }
+
+    // ... your tests go here
+}
+```
+
+_Usage Explanation_:
+
+- **[CollectionDefinition] and [Collection] Attributes**: These group test classes that share the same PostgreSQL fixture so that the container is started once per collection.
+- **IAsyncLifetime**: Implements asynchronous setup and cleanup of test resources.
+
+Phew! That’s a lot of setup, but it’s crucial for ensuring that our tests run in a clean, isolated environment.
+
+---
+
+## ❌ Watch the Tests Fail
+
+At this point, running the tests will **fail** because the application is still using an in-memory store. For example, you might see an error like:
+
+```
+BooksInventory/tests/BooksInventory.WebApi.Tests/BooksInventoryTests.cs(91): error TESTERROR:
+      BooksInventory.WebApi.Tests.BooksInventoryTests.AddBook_ReturnsBookId (1ms): Error Message: Npgsql.PostgresException : 42P01: relation "Books" does not exist
+```
+
+---
+
+## ✅ Update `Program.cs` to Use EF Core
+
+Now let's update `Program.cs` to make the application use EF Core with PostgreSQL.
+
+```csharp
+using BooksInventory.WebApi;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// Register the PostgreSQL service with EF Core.
+// This replaces any default in-memory service configuration.
+builder.Services.AddDbContext<BooksInventoryDbContext>(options =>
+{
+    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"));
+});
+
+var app = builder.Build();
+
+// Inject the DB context to add a new book asynchronously.
+app.MapPost("/addBook", async (AddBookRequest request, BooksInventoryDbContext db) =>
+{
+    var book = new Book
+    {
+        Title = request.Title,
+        Author = request.Author,
+        ISBN = request.ISBN
+    };
+    db.Books.Add(book);
+    await db.SaveChangesAsync();
+    return Results.Ok(new AddBookResponse(book.Id));
+});
+
+// Inject the DB context to get a book asynchronously.
+app.MapGet("/books/{id}", async (int id, BooksInventoryDbContext db) =>
+{
+    var book = await db.Books.FindAsync(id);
+    return book is not null
+        ? Results.Ok(book)
+        : Results.NotFound(new { Message = "Book not found", BookId = id });
+});
+
+app.Run();
+
+public record AddBookRequest(string Title, string Author, string ISBN);
+public record AddBookResponse(int BookId);
+public record Book
+{
+    public int Id { get; init; }
+    public required string Title { get; init; }
+    public required string Author { get; init; }
+    public required string ISBN { get; init; }
+};
+
+// Explicitly define Program as partial for integration tests.
+public partial class Program { }
+```
+
+**Additional Instructions:**
+
+- Update `appsettings.Development.json` with the following connection string:
+
+  ```json
+  "ConnectionStrings": {
+    "DefaultConnection": "Host=localhost;Port=5432;Database=books_inventory;Username=user;Password=password"
+  }
+  ```
+
+---
+
+## 🧱 Add Migrations
+
+Now that the application has been updated to use PostgreSQL, add the initial migrations with:
+
+```bash
+dotnet ef migrations add InitialCreate --project src/BooksInventory.WebApi/BooksInventory.WebApi.csproj
+```
+
+This command generates the migration files necessary to set up your PostgreSQL database schema.
+
+After adding the migrations, run your tests using:
+
+```bash
+dotnet test
+```
+
+Your tests should now run smoothly within the containerized environment.
+
+---
+
+## ⚙️ Developer Setup for Manual Testing
+
+For **manual testing in a development environment**, be sure to apply the migrations after starting the database. Use the following `docker-compose.yml` configuration to start PostgreSQL:
+
+```yaml
+services:
+  database:
+    image: postgres:15-alpine
+    container_name: books_inventory_db
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: books_inventory
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "user", "-d", "books_inventory"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres-data:
+```
+
+1. **Start the database container:**
+
+   ```bash
+   docker-compose up -d
+   ```
+
+2. **Apply migrations:**
+
+   Right after the service is up, run:
+
+   ```bash
+   dotnet ef database update --project src/BooksInventory.WebApi/BooksInventory.WebApi.csproj
+   ```
+
+3. **Test the database connection:**
+
+   Install the PostgreSQL client (for example, on Ubuntu use `sudo apt install postgresql-client`), then connect using:
+
+   ```bash
+   psql -h localhost -U user -d books_inventory
+
+   # Enter "password" as password when prompted.
+   ```
+
+   If you see an error message such as:
+
+   ```
+   Failed executing DbCommand (10ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+   SELECT "MigrationId", "ProductVersion"
+   FROM "__EFMigrationsHistory"
+   ORDER BY "MigrationId";
+   ```
+
+   this is normal since this error appears when no migrations have been applied yet. You may safely ignore it.
+
+4. **Verify the Database Schema:**
+
+   In the `psql` terminal, run:
+
+   ```bash
+   \dt
+   ```
+
+   The expected output should be similar to:
+
+   ```
+    Schema |         Name          | Type  | Owner
+   --------+-----------------------+-------+-------
+    public | Books                 | table | user
+    public | __EFMigrationsHistory | table | user
+   (2 rows)
+   ```
+
+### Manual Testing in VSCode Using a REST Client
+
+For a quick manual test of your API endpoints:
+
+- Open the project in VSCode.
+- Use the [REST client] extension and create an `*.http` file with the following content:
+
+  ```
+  # Base URL
+  @baseUrl = http://localhost:5000
+
+  # Test POST /addBook
+  POST {{baseUrl}}/addBook HTTP/1.1
+  Content-Type: application/json
+
+  {
+      "Title": "The Pragmatic Programmer",
+      "Author": "Andy Hunt and Dave Thomas",
+      "ISBN": "9780135957059"
+  }
+
+  ###
+
+  # Test GET /books/{id} (replace {id} with a valid BookId from the POST response)
+  GET {{baseUrl}}/{id} HTTP/1.1
+  Accept: application/json
+  ```
+
+- Send these requests to verify that the API routes are functioning as expected.
+
+---
+
+## 🚢 Final Thoughts
+
+By following these steps, we’ve:
+
+- Set up **Testcontainers** for isolated, reproducible integration tests.
+- Switched our storage from an in-memory dictionary to a real **PostgreSQL** database.
+- Applied migrations to ensure that our tests run against a schema identical to production.
+
+**Next Steps:**
+
+- Setting up a **CI pipeline**.
+- Explore integrating **Redis** for caching.
+- Add **RabbitMQ** for messaging.
+- Implement **OpenTelemetry** for distributed tracing.
+
+Stay tuned for more in-depth articles into system design and testing strategies!
+
+**Your Turn**: Try this approach in your own projects and see how much smoother your testing workflow becomes. Got a cool testing trick? Share it in the comments or hit me up on GitHub [here](https://github.com/dorinandreidragan/books-inventory/tree/episode/02-testcontainers-postgresql). 📬
+
+[Central Package Management | Microsoft Learn]: https://learn.microsoft.com/en-us/nuget/consume-packages/Central-Package-Management
+[first article]: https://dev.to/dorinandreidragan/testing-minimal-web-apis-with-aspnet-a-developers-guide-1gio
+[postgreSQL]: https://www.postgresql.org/
+[REST client]: https://marketplace.visualstudio.com/items?itemName=humao.rest-client
+[Shared Context between Tests | xUnit.net]: https://xunit.net/docs/shared-context
+[Testcontainers]: https://www.testcontainers.org/
+[Testcontainers NuGet package]: https://www.nuget.org/packages/TestContainers.PostgreSql
+[xUnit]: https://xunit.net/
+
+
+### FILE END: 02-testcontainers-postgresql.md
+
+### FILE START: 04-telemetry.md
+# File Path: ../docs/04-telemetry.md
+# If you can't observe it 🔭, you can't operate it
+
+**Intro**:
+
+- Observability, why we need it? TODO: explain briefly why
+- Why OpenTelemetry? TODO: explain briefly why
+
+  - why we need:
+    - traces, TODO: explain briefly why
+    - metrics TODO: explain briefly why
+    - logs TODO: explain briefly why
+
+- How can we observe our books inventory?
+
+  - we need the OpenTelemetry Collector
+  - we need to register some new services
+  - we need tools (this episode we'll use only tracing tools)
+    - tracing: jaeger
+
+**Content**:
+
+Let's get going:
+
+We want to go from this:
+
+![Architecture with caching](../.assets/architecture-caching.svg)
+
+To this:
+
+![Architecture with caching](../.assets/architecture-caching-telemetry.svg)
+
+Explain what each new element represents:
+
+- opentelemetry collector: TODO: explain
+- jaeger: TODO: explain
+
+Here is how we do it:
+
+- create the otel collector config file in src/telemetry/otel-collector.yaml
+
+  - TODO: create a diagram to show how telemetry is working (otlp exporter, receiver etc.)
+
+- update the docker-compose.yml
+
+  - add the collector
+  - add jaeger
+
+- update the program.cs to
+
+  - add instrumentation:
+
+    - for aspnet core
+    - for postgresql
+
+  - first:
+
+    - add console exporter to see if it works
+    - show some console output to confirm
+
+  - second:
+
+    - add otlp exporter to see the tracing inside jaeger
+    - run docker compose to run the collector and jaeger containers
+    - inspect the traces for post, get
+
+      - run get method twice to see the difference in cache miss / hit
+        - TODO: add gif with jaeger tracing
+        - run this command: `docker exec -it books_inventory_redis redis-cli KEYS "\*"` to make sure the keys were stored in cache.
+          - you should see the name of the keys in redis
+
+    - inspect the traces for put:
+
+      - run this commands to make sure the key is updated in the cache.
+
+        ```bash
+        # enable events
+        docker exec -it books_inventory_redis redis-cli CONFIG SET notify-keyspace-events KEA
+
+        # subscribe to events for the key
+        docker exec -it books_inventory_redis redis-cli PSUBSCRIBE "__keyspace@0__:BooksInventoryCache:book_43"
+        ```
+
+- an imediate benefit of tracing:
+
+  - tracing shows us inefficient delete (two db rounds instead of one). below is the solution:
+
+  ```csharp
+  app.MapDelete("/books/{id}", async (int id, BooksInventoryDbContext db, HybridCache cache) =>
+  {
+      var rowsAffected = await db.Books
+          .Where(b => b.Id == id)
+          .ExecuteDeleteAsync();
+
+      if (rowsAffected == 0)
+      {
+          return Results.NotFound(new { Message = "Book not found", BookId = id });
+      }
+
+      // Remove the entry from the cache
+      await cache.RemoveAsync($"book_{id}");
+
+      return Results.NoContent();
+  });
+  ```
+
+**Extra geeky topics**
+
+- HybridCache doesn't have instrumentation out of the box (yet), how can you smoothly add it?
+- HybridCache is an abstraction (thank you Microsoft!). This leaves room for custom implementations. Would you like to see the famous FusionCache (which provides a HybridCache implementation), in action with out of the box instrumentation?
+- We only touched traces, but there is metrics and logs
+
+  - jaeger is for distributed tracing only
+  - metrics -> prometheus
+  - logs -> opensearch
+  - aggregate everything with grafana
+
+- updating the db and cache can be problematic in distributed system. it will not work properly due to race conditions. How can we spot that (locust for load/stres testing + tracing)
+
+- how can we run integration tests with telemetry? (investigate how testcontainers and grafana/otel-lgtm can be used)
+
+Stay tuned as we tackle each of these interesting topics
+
+
+### FILE END: 04-telemetry.md
+
+### FILE START: 03-testcontainers-redis.md
+# File Path: ../docs/03-testcontainers-redis.md
+# HybridCache & Redis: Cache Smarter, Not Harder for ASP.NET APIs 🚀
+
+## Cache Smarter, Not Harder
+
+If your ASP.NET API slows down under frequent database queries, smarter caching can make all the difference. In this article, we'll show you how to integrate HybridCache and Redis to boost performance efficiently. You'll learn how a two-tier caching strategy—a fast in-memory layer complemented by a distributed Redis cache—can cut down on latency and offload your database. We'll walk through the code changes and testing improvements that help you cache smarter, not harder.
+
+> This article builds on the previous two articles where we covered **[testing minimal Web APIs][episode-01]** and adding **[PostgreSQL with Testcontainers][episode-02]**.
+
+## HybridCache: A Smarter Approach to API Caching
+
+HybridCache bridges the gaps between `IMemoryCache` and `IDistributedCache` by offering a unified API for both in-process and out-of-process caching. It combines a fast, local in-memory cache with a durable distributed cache—in our project, powered by Redis—giving you the best of both worlds.
+
+**Key Benefits:**
+
+- **Unified API:** Write caching logic once to work with both local memory and a durable distributed cache.
+- **Built-In Stampede Protection:** Prevents multiple simultaneous cache misses from triggering duplicate, expensive operations.
+- **Configurable Serialization:** Uses System.Text.Json by default, with easy options to switch to other serializers if needed.
+- **Simplified Code:** Replace complex caching patterns with a single, elegant `GetOrCreateAsync` method.
+
+For example, instead of manually managing cache keys, serialization, and concurrency, you simply write:
+
+```csharp
+return await cache.GetOrCreateAsync(
+    $"someinfo:{name}:{id}",
+    async cancel => await SomeExpensiveOperationAsync(name, id, cancel),
+    token: token
+);
+```
+
+This streamlined approach helps you cache smarter, not harder, making your ASP.NET API more responsive and easier to maintain. See [HybridCache library in ASP.NET Core].
+
+## Upgraded API Endpoints for Smart Caching
+
+Before diving into the code, here’s a quick overview of our caching strategy for each endpoint:
+
+- **GET Endpoints:**  
+  These endpoints are read-heavy, so caching saves the cost of frequent database queries. When a book is requested, we first check the in-memory cache for lightning-fast results. In case of an application restart (which clears the in-memory cache), our durable Redis layer (used as a distributed cache) ensures data persistence. This two-tier (HybridCache) approach improves responsiveness without sacrificing consistency.
+
+- **DELETE Endpoints:**  
+  Deleting data requires us to invalidate any cached copies. This ensures that once a book is removed from the database, no stale data is served from either cache layer—even in a distributed environment.
+
+- **PUT Endpoints:**  
+  Update operations need to synchronize both the database and cache. When a book is updated, the cache should also reflect these changes (either by refreshing or invalidating the stale data), so that future GET requests always see the most recent version.
+
+- **POST and Search/Get-All Endpoints:**  
+  For **POST requests**, we avoid caching because creating new records introduces consistency challenges in distributed caches. Similarly, for **search and get-all endpoints**, caching dynamic query results (especially when pagination is involved) can lead to stale or inconsistent data. Instead, we rely on pagination to manage load and ensure freshness.
+
+Now, let’s see how we implemented these strategies in our code:
+
+### **Prerequisites for Caching**
+
+#### **Get the Libraries**
+
+Install the required NuGet packages.
+
+```bash
+dotnet add package Microsoft.Extensions.Caching.Hybrid --version 9.4.0
+dotnet add package Microsoft.Extensions.Caching.StackExchangeRedis --version 9.0.2
+```
+
+#### **Register the Services**
+
+In `Program.cs` add the services to the dependency injection (DI) container:
+
+```csharp
+// Add StackExchangeRedisCache service for Redis
+builder.Services.AddStackExchangeRedisCache(options =>
+{
+    options.Configuration = builder.Configuration.GetConnectionString("RedisConnection");
+    options.InstanceName = "BooksInventoryCache:";
+});
+
+// Add HybridCache service
+builder.Services.AddHybridCache();
+```
+
+### **GET Endpoint: Fast and Durable Retrieval**
+
+For GET requests, we cache the book data with HybridCache. On a cache miss, the data is fetched from PostgreSQL, then stored in both the in-memory and Redis layers (used for durability in distributed scenarios).
+
+```csharp
+app.MapGet("/books/{id}", async (int id, BooksInventoryDbContext db, HybridCache cache) =>
+{
+    var book = await cache.GetOrCreateAsync($"book_{id}", async (cancellationToken) =>
+    {
+        return await db.Books.FindAsync([id], cancellationToken);
+    });
+
+    return book is not null
+        ? Results.Ok(book)
+        : Results.NotFound(new { Message = "Book not found", BookId = id });
+});
+```
+
+_Explanation:_
+
+- **Cache Miss:** The first request fetches the book from the database and then caches it.
+
+  ![Cache miss]
+
+- **Cache Hit:** Subsequent requests serve the book data from the much faster in-memory cache—falling back to Redis if the app has restarted.
+
+  ![Cache hit]
+
+### **DELETE Endpoint: Ensuring Consistency by Invalidation**
+
+When deleting a book, it's crucial to remove its cached version to prevent serving stale data later on.
+
+```csharp
+app.MapDelete("/books/{id}", async (int id, BooksInventoryDbContext db, HybridCache cache) =>
+{
+    var book = await db.Books.FindAsync(id);
+    if (book is null)
+    {
+        return Results.NotFound(new { Message = "Book not found", BookId = id });
+    }
+
+    db.Books.Remove(book);
+    await db.SaveChangesAsync();
+
+    // Remove the entry from the cache
+    await cache.RemoveAsync($"book_{id}");
+
+    return Results.NoContent();
+});
+```
+
+_Explanation:_
+
+- Once the book is deleted from the database, we explicitly remove the cache entry from Redis. This helps ensure that even in a distributed scenario—with multiple app instances—the cache remains consistent.
+
+### **PUT Endpoint: Updating and Refreshing the Cache**
+
+When updating a book, we make sure the cache reflects the latest changes by either refreshing or invalidating the cached value.
+
+```csharp
+app.MapPut("/books/{id}", async (int id, AddBookRequest request, BooksInventoryDbContext db, HybridCache cache) =>
+{
+    var book = await db.Books.AsNoTracking().FirstOrDefaultAsync(b => b.Id == id);
+    if (book is null)
+    {
+        return Results.NotFound(new { Message = "Book not found", BookId = id });
+    }
+
+    book = book with
+    {
+        Title = request.Title,
+        Author = request.Author,
+        ISBN = request.ISBN
+    };
+
+    db.Books.Update(book);
+    await db.SaveChangesAsync();
+
+    // Update the cache
+    await cache.SetAsync($"book_{id}", book);
+
+    return Results.Ok(book);
+});
+```
+
+_Explanation:_
+
+- After successfully updating the record, we update the existing cache entry so that the next GET will fetch updated information.
+
+### **POST & Search/Get-All Endpoints: Caching Exclusions**
+
+For **POST requests**, we avoid caching new entries because:
+
+- The creation process might involve multiple distributed components.
+- Ensuring immediate consistency is challenging.
+
+Similarly, **Search and Get-All endpoints** aren’t cached due to:
+
+- The dynamic nature of query results.
+- The added complexity and risk of stale data when working with numerous filters and pagination.
+
+Instead, we rely on efficient pagination to limit data volume, ensuring a balanced load without the pitfalls of caching complex queries.
+
+Below is the updated section that covers our testing approach in depth, from containerized fixtures to automated and manual cache verification. This revised piece explains how we integrated Testcontainers for Redis, outlines our composite fixture setup (including the individual PostgreSql and Redis fixtures), and highlights the cool benefits of verifying two-level caching with HybridCache.
+
+## Enhanced Testing with Testcontainers and Automated Validation
+
+To ensure our caching strategy functions as expected in a real-world scenario, we containerized our dependencies and wrote automated tests to inspect every caching layer. Here’s how we did it:
+
+### Containerized Testing with Composite Fixtures
+
+We use a composite fixture to spin up both PostgreSQL and Redis containers automatically. This setup uses Testcontainers to simulate a production-like environment—even for the distributed cache.
+
+**1. Adding the Redis Testcontainer Package:**  
+To add Redis container support for integration tests, we installed the following NuGet package:
+
+```bash
+dotnet add package Testcontainers.Redis --version 4.4.0
+```
+
+**2. Our Fixture Composition:**  
+Each container is encapsulated in its own fixture:
+
+- **PostgreSqlContainerFixture:**  
+   Configures and starts a PostgreSQL container using the `postgres:15-alpine` image.
+
+- **RedisContainerFixture:**  
+  Configures and starts a Redis container using the `redis:7-alpine` image.
+
+- **CompositeFixture:**  
+   Combines these fixtures into one:
+
+  ```csharp
+  public class CompositeFixture : IAsyncLifetime
+  {
+    public PostgreSqlContainerFixture Postgres { get; private set; }
+    public RedisContainerFixture Redis { get; private set; }
+
+    public CompositeFixture()
+    {
+        Postgres = new PostgreSqlContainerFixture();
+        Redis = new RedisContainerFixture();
+    }
+
+    public async Task InitializeAsync()
+    {
+        await Task.WhenAll(
+            Postgres.InitializeAsync(),
+            Redis.InitializeAsync()
+        );
+    }
+
+    public async Task DisposeAsync()
+    {
+        await Task.WhenAll(
+            Postgres.DisposeAsync(),
+            Redis.DisposeAsync()
+        );
+    }
+  }
+  ```
+
+**3. CustomWebApplicationFactory and Test Injection:**  
+Our `CustomWebApplicationFactory` now accepts the composite fixture as a parameter. This allows dependency injection of both containers to configure connection strings and services seamlessly.
+
+For example, the constructor of our integration tests shows the composite fixture being injected:
+
+```csharp
+[Collection(nameof(IntegrationTestsCollection))]
+public class BooksInventoryCacheTests : IAsyncLifetime
+{
+
+    private readonly CustomWebApplicationFactory factory;
+    private readonly HttpClient client;
+    private readonly BooksInventoryDbContext db;
+    private readonly IDistributedCache redis;
+    private readonly CompositeFixture fixture;
+
+    public BooksInventoryCacheTests(CompositeFixture fixture)
+    {
+        this.fixture = fixture;
+        this.factory = new CustomWebApplicationFactory(fixture);
+        this.client = this.factory.CreateClient();
+
+        // Create a scope to retrieve scoped instances of DB context and Redis cache
+        // for direct database and cache interactions during tests
+        var scope = this.factory.Services.CreateScope();
+        this.db = scope.ServiceProvider.GetRequiredService<BooksInventoryDbContext>();
+        this.redis = scope.ServiceProvider.GetRequiredService<IDistributedCache>();
+    }
+    // ...
+}
+```
+
+This setup, along with similar implementations for `PostgreSqlContainerFixture` and `RedisContainerFixture`, ensures our tests run in a consistent and realistic environment.
+
+### Automated Cache Behavior Verification
+
+It's a super cool part of our implementation—by verifying HybridCache’s two-level caching behavior, we get intimate visibility into its inner guts.
+
+#### BooksInventoryCacheTests
+
+- **In-Memory Cache Verification:** The test simulates a warmup (fetching a book for the first time) that stores a value in the in-memory cache. Then, we deliberately update the underlying data in PostgreSQL and Redis to see if the in-memory layer still returns the original data, confirming that the in-memory cache is effective.
+
+  ```csharp
+  [Fact]
+  public async Task InMemoryCacheHit_AfterWarmup()
+  {
+      var book = new Book
+      {
+          Title = "t1",
+          Author = "a1",
+          ISBN = "isbn1"
+      };
+      db.Books.Add(book);
+      await db.SaveChangesAsync();
+
+      // Cache warm-up (should populate both in-memory and Redis cache)
+      await this.client.GetAsync($"/books/{book.Id}");
+
+      // Mutate db and Redis to differ from the in-memory cache.
+      await db.UpdateBookAsync(book with { Title = "t1_db_updated" });
+      await redis.UpdateBookAsync(book with { Title = "t1_redis_updated" });
+
+      // Request the book again (should return stale value from in-memory cache).
+      var response = await this.client.GetAsync($"/books/{book.Id}");
+
+      // Assert
+      var bookFromInMemory = await response.DeserializeAsync<Book>();
+      bookFromInMemory!.Title.Should().Be("t1");
+
+      Book bookFromDb = await db.GetByIdAsync(book.Id);
+      bookFromDb!.Title.Should().Be("t1_db_updated");
+
+      var json = await redis.GetStringAsync(book.Id.GetCacheKey());
+      json.Should().Contain("t1_redis_updated");
+  }
+  ```
+
+- **Redis Cache Verification (Durability):**To test Redis involvement, we simulate an application restart by disposing our factory. The in-memory cache is lost, so the following GET request should fall back on Redis, returning the cached (old) value even after the database update.
+
+  ```csharp
+  [Fact]
+  public async Task RedisCacheHit_AfterWarmUp()
+  {
+      var book = new Book
+      {
+          Title = "t1",
+          Author = "a1",
+          ISBN = "isbn1"
+      };
+      db.Books.Add(book);
+      await db.SaveChangesAsync();
+
+      // Cache warm-up (should populate both in-memory and Redis cache)
+      await this.client.GetAsync($"/books/{book.Id}");
+
+      // App restart (should clear the in-memory cache)
+      this.factory.Dispose();
+      using var newFactory = new CustomWebApplicationFactory(this.fixture);
+      using var newClient = newFactory.CreateClient();
+
+      // Mutate db to differ from redis cache.
+      await db.UpdateBookAsync(book with { Title = "t1_db_updated" });
+
+      // Request the book again (should return stale value from redis cache).
+      var response = await newClient.GetAsync($"/books/{book.Id}");
+
+      // Assert
+      var bookFromRedis = await response.DeserializeAsync<Book>();
+      bookFromRedis!.Title.Should().Be("t1");
+      Book bookFromDb = await db.GetByIdAsync(book.Id);
+      bookFromDb!.Title.Should().Be("t1_db_updated");
+  }
+  ```
+
+#### BooksInventoryTests
+
+Other tests (like adding, updating, and deleting books) also interact with the caching layers indirectly by verifying the API responses. They ensure that our endpoints work seamlessly with HybridCache and the underlying containers, confirming both data consistency and performance gains.
+
+### Manual Cache Verification Using a REST Client 🖥️
+
+1. Add Redis to our development environment. Update the `docker-compose.yml`:
+
+```yaml
+services:
+  # ... existing PostgreSQL service ...
+  redis:
+    image: redis:7.0-alpine
+    container_name: books_inventory_redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - redis-data:/data
+
+volumes:
+  redis-data:
+```
+
+2. Start the infrastructure:
+
+   ```bash
+   docker-compose up -d
+   ```
+
+3. Update database:
+
+   ```bash
+   dotnet ef database update --project src/BooksInventory.WebApi/BooksInventory.WebApi.csproj
+   ```
+
+4. Start the Web API:
+
+   ```bash
+   dotnet run --project src/BooksInventory.WebApi/BooksInventory.WebApi.csproj
+   ```
+
+5. Inspect caching behavior manually:
+
+- **Add a new book** via the `/addBook` endpoint. The log should look like this:
+
+  ```plaintext
+  info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (10ms) [Parameters=[@p0='?', @p1='?', @p2='?'], CommandType='Text', CommandTimeout='30']
+      INSERT INTO "Books" ("Author", "ISBN", "Title")
+      VALUES (@p0, @p1, @p2)
+      RETURNING "Id";
+  ```
+
+- **First GET Request**: Should log a database SELECT, indicating a cache miss. The log should look like this:
+
+  ```plaintext
+  info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (1ms) [Parameters=[@__p_0='?' (DbType = Int32)], CommandType='Text', CommandTimeout='30']
+      SELECT b."Id", b."Author", b."ISBN", b."Title"
+      FROM "Books" AS b
+      WHERE b."Id" = @__p_0
+      LIMIT 1
+  ```
+
+- **Subsequent GET Requests**: No SELECT log should appear, confirming that the response is served from cache.
+
+## Conclusion & Next Steps 🎯
+
+In this article, we explored how to boost your ASP.NET API's performance by leveraging HybridCache with Redis. We walked through our two-level caching strategy, updated API endpoints for fast retrieval and consistency, and demonstrated our robust, containerized testing approach. By using HybridCache, you get a unified caching API with built-in stampede protection and configurable serialization—making it far easier to **cache smarter, not harder**.
+
+**Next up**: Observability! We'll integrate OpenTelemetry to monitor cache hits, misses, and performance.
+
+---
+
+Ready to cache smarter, not harder 🚀? Clone the [GitHub repository], try it out, and share your experience! Did you find interesting ways to use HybridCache? I'd love to hear about them in the comments or in a GitHub discussion.
+
+[HybridCache library in ASP.NET Core]: https://learn.microsoft.com/en-us/aspnet/core/performance/caching/hybrid?view=aspnetcore-9.0
+[GitHub repository]: https://github.com/dorinandreidragan/books-inventory/tree/episode/03-testcontainers-redis
+
+
+### FILE END: 03-testcontainers-redis.md
+
+### FILE START: 04-telemetry-article.md
+# File Path: ../docs/04-telemetry-article.md
+
+
+### FILE END: 04-telemetry-article.md
+
+## CONFIGURATIONS
+
+### FILE START: BooksInventory.WebApi.Tests.csproj
+# File Path: ../tests/BooksInventory.WebApi.Tests/BooksInventory.WebApi.Tests.csproj
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="FluentAssertions" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="TestContainers.PostgreSql" />
+    <PackageReference Include="TestContainers.Redis" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\BooksInventory.WebApi\BooksInventory.WebApi.csproj" />
+  </ItemGroup>
+
+</Project>
+
+
+### FILE END: BooksInventory.WebApi.Tests.csproj
+
+### FILE START: BooksInventory.WebApi.csproj
+# File Path: ../src/BooksInventory.WebApi/BooksInventory.WebApi.csproj
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
+    <PackageReference Include="Microsoft.Extensions.Caching.Hybrid" />
+    <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="Npgsql.OpenTelemetry" />
+    <PackageReference Include="OpenTelemetry.Exporter.Console" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
+    <PackageReference Include="OpenTelemetry.Exporter.Prometheus.AspNetCore" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Http" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.StackExchangeRedis" />
+    <PackageReference Include="Scrutor" />
+    <PackageReference Include="ZiggyCreatures.FusionCache" />
+    <PackageReference Include="ZiggyCreatures.FusionCache.OpenTelemetry" />
+    <PackageReference Include="ZiggyCreatures.FusionCache.Serialization.SystemTextJson" />
+  </ItemGroup>
+
+</Project>
+
+
+### FILE END: BooksInventory.WebApi.csproj
+
+## SOURCE CODE
+
+### FILE START: BooksInventoryCacheTests.cs
+# File Path: ../tests/BooksInventory.WebApi.Tests/BooksInventoryCacheTests.cs
+using BooksInventory.WebApi;
+using BooksInventory.WebApi.Tests;
+using BooksInventory.WebApi.Tests.Extensions;
+using BooksInventory.WebApi.Tests.Factories;
+
+using FluentAssertions;
+
+using Microsoft.Extensions.Caching.Distributed;
+using Microsoft.Extensions.DependencyInjection;
+
+using Xunit;
+
+[Collection(nameof(IntegrationTestsCollection))]
+public class BooksInventoryCacheTests : IAsyncLifetime
+{
+
+    private readonly CustomWebApplicationFactory factory;
+    private readonly HttpClient client;
+    private readonly BooksInventoryDbContext db;
+    private readonly IDistributedCache redis;
+    private readonly CompositeFixture fixture;
+
+    public BooksInventoryCacheTests(CompositeFixture fixture)
+    {
+        this.fixture = fixture;
+        this.factory = new CustomWebApplicationFactory(fixture);
+        this.client = this.factory.CreateClient();
+
+        // Create a scope to retrieve scoped instances of DB context and Redis cache
+        // for direct database and cache interactions during tests
+        var scope = this.factory.Services.CreateScope();
+        this.db = scope.ServiceProvider.GetRequiredService<BooksInventoryDbContext>();
+        this.redis = scope.ServiceProvider.GetRequiredService<IDistributedCache>();
+    }
+
+    public async Task InitializeAsync()
+    {
+        // Clean the database and remove all books to ensure test isolation.
+        db.Books.RemoveRange(db.Books);
+        await db.SaveChangesAsync();
+    }
+
+    // Dispose resources to maintain isolation after each test run.
+    public Task DisposeAsync()
+    {
+        this.client.Dispose();
+        this.factory.Dispose();
+        return Task.CompletedTask;
+    }
+
+    [Fact]
+    public async Task InMemoryCacheHit_AfterWarmup()
+    {
+        var book = new Book
+        {
+            Title = "t1",
+            Author = "a1",
+            ISBN = "isbn1"
+        };
+        db.Books.Add(book);
+        await db.SaveChangesAsync();
+
+        // Cache warm-up (should populate both in-memory and Redis cache)
+        await this.client.GetAsync($"/books/{book.Id}");
+
+        // Mutate db and Redis to differ from the in-memory cache.
+        await db.UpdateBookAsync(book with { Title = "t1_db_updated" });
+        await redis.UpdateBookAsync(book with { Title = "t1_redis_updated" });
+
+        // Request the book again (should return stale value from in-memory cache).
+        var response = await this.client.GetAsync($"/books/{book.Id}");
+
+        // Assert
+        var bookFromInMemory = await response.DeserializeAsync<Book>();
+        bookFromInMemory!.Title.Should().Be("t1");
+
+        Book bookFromDb = await db.GetByIdAsync(book.Id);
+        bookFromDb!.Title.Should().Be("t1_db_updated");
+
+        var json = await redis.GetStringAsync(book.Id.GetCacheKey());
+        json.Should().Contain("t1_redis_updated");
+    }
+
+    [Fact]
+    public async Task RedisCacheHit_AfterWarmUp()
+    {
+        var book = new Book
+        {
+            Title = "t1",
+            Author = "a1",
+            ISBN = "isbn1"
+        };
+        db.Books.Add(book);
+        await db.SaveChangesAsync();
+
+        // Cache warm-up (should populate both in-memory and Redis cache)
+        await this.client.GetAsync($"/books/{book.Id}");
+
+        // App restart (should clear the in-memory cache)
+        this.factory.Dispose();
+        using var newFactory = new CustomWebApplicationFactory(this.fixture);
+        using var newClient = newFactory.CreateClient();
+
+        // Mutate db to differ from redis cache.
+        await db.UpdateBookAsync(book with { Title = "t1_db_updated" });
+
+        // Request the book again (should return stale value from redis cache).
+        var response = await newClient.GetAsync($"/books/{book.Id}");
+
+        // Assert
+        var bookFromRedis = await response.DeserializeAsync<Book>();
+        bookFromRedis!.Title.Should().Be("t1");
+        Book bookFromDb = await db.GetByIdAsync(book.Id);
+        bookFromDb!.Title.Should().Be("t1_db_updated");
+    }
+}
+
+### FILE END: BooksInventoryCacheTests.cs
+
+### FILE START: IntegrationTestsCollection.cs
+# File Path: ../tests/BooksInventory.WebApi.Tests/IntegrationTestsCollection.cs
+using Xunit;
+
+namespace BooksInventory.WebApi.Tests;
+
+[CollectionDefinition(nameof(IntegrationTestsCollection))]
+public class IntegrationTestsCollection : ICollectionFixture<CompositeFixture> { }
+
+
+### FILE END: IntegrationTestsCollection.cs
+
+### FILE START: BooksInventoryTests.cs
+# File Path: ../tests/BooksInventory.WebApi.Tests/BooksInventoryTests.cs
+﻿using BooksInventory.WebApi.Tests.Factories;
+
+using FluentAssertions;
+
+using Microsoft.Extensions.DependencyInjection;
+
+using Xunit;
+
+namespace BooksInventory.WebApi.Tests;
+
+[Collection(nameof(IntegrationTestsCollection))]
+public class BooksInventoryTests : IAsyncLifetime
+{
+    private readonly CustomWebApplicationFactory factory;
+    private readonly HttpClient client;
+    private readonly BooksInventoryDbContext dbContext;
+
+    public BooksInventoryTests(CompositeFixture fixture)
+    {
+        this.factory = new CustomWebApplicationFactory(fixture);
+        this.client = this.factory.CreateClient();
+
+        // Create a scope to retrieve a scoped instance of the DB context.
+        // This allows direct interaction with the database for setup and teardown.
+        var scope = this.factory.Services.CreateScope();
+        this.dbContext = scope.ServiceProvider.GetRequiredService<BooksInventoryDbContext>();
+    }
+
+    public async Task InitializeAsync()
+    {
+        // Clean the database to ensure test isolation.
+        dbContext.Books.RemoveRange(dbContext.Books);
+        await dbContext.SaveChangesAsync();
+    }
+
+    // Dispose resources to maintain isolation after each test run.
+    public Task DisposeAsync()
+    {
+        this.client.Dispose();
+        this.factory.Dispose();
+        return Task.CompletedTask;
+    }
+
+    [Fact]
+    public async Task AddBook_ReturnsBookId()
+    {
+        var request = new AddBookRequest("AI Engineering", "Chip Huyen", "1098166302");
+        var content = request.GetHttpContent();
+
+        var response = await this.client.PostAsync("/addBook", content);
+
+        response.EnsureSuccessStatusCode();
+        var result = await response.DeserializeAsync<AddBookResponse>();
+        result?.Should().NotBeNull();
+        result!.BookId.Should().BeGreaterThan(0);
+    }
+
+    [Fact]
+    public async Task GetBook_ReturnsBookDetails()
+    {
+        int bookId = await AddBookAsync("book1", "author1", "isbn1");
+
+        var getResponse = await this.client.GetAsync($"/books/{bookId}");
+
+        getResponse.EnsureSuccessStatusCode();
+        var addedBook = await getResponse.DeserializeAsync<Book>();
+        addedBook.Should().BeEquivalentTo(
+            new Book
+            {
+                Id = bookId,
+                Title = "book1",
+                Author = "author1",
+                ISBN = "isbn1"
+            });
+    }
+
+
+    [Fact]
+    public async Task RemoveBook_RemovesBookSuccessfully()
+    {
+        var bookId = await AddBookAsync("book1", "author1", "isbn1");
+
+        var deleteResponse = await this.client.DeleteAsync($"/books/{bookId}");
+
+        deleteResponse.EnsureSuccessStatusCode();
+        var getResponse = await this.client.GetAsync($"/books/{bookId}");
+        getResponse.StatusCode.Should().Be(System.Net.HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task GetAllBooks_ReturnsAllBooks()
+    {
+        await AddBookAsync("book1", "author1", "isbn1");
+        await AddBookAsync("book2", "author2", "isbn2");
+
+        var response = await this.client.GetAsync("/books");
+
+        response.EnsureSuccessStatusCode();
+        var books = await response.DeserializeAsync<List<Book>>();
+        books.Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task GetAllBooks_WithPagination_ReturnsPaginatedResults()
+    {
+        await AddBookAsync("book1", "author1", "isbn1");
+        await AddBookAsync("book2", "author2", "isbn2");
+        await AddBookAsync("book3", "author3", "isbn3");
+        await AddBookAsync("book4", "author4", "isbn4");
+        await AddBookAsync("book5", "author5", "isbn5");
+
+        var response = await this.client.GetAsync("/books?page=2&pageSize=2");
+
+        response.EnsureSuccessStatusCode();
+        var paginatedBooks = await response.DeserializeAsync<List<Book>>();
+        paginatedBooks.Should().HaveCount(2);
+        paginatedBooks[0].Title.Should().Be("book3");
+        paginatedBooks[1].Title.Should().Be("book4");
+    }
+
+    [Fact]
+    public async Task UpdateBook_UpdatesBookSuccessfully()
+    {
+        var bookId = await AddBookAsync("book1", "author1", "isbn1");
+        var updateRequest = new AddBookRequest("book1 updated", "author1 updated", "isbn1 updated");
+        var updateContent = updateRequest.GetHttpContent();
+
+        var updateResponse = await this.client.PutAsync($"/books/{bookId}", updateContent);
+
+        updateResponse.EnsureSuccessStatusCode();
+        Book? updatedBook = await GetBookByIdAsync(bookId);
+        updatedBook.Should().BeEquivalentTo(
+            new Book
+            {
+                Id = bookId,
+                Title = updateRequest.Title,
+                Author = updateRequest.Author,
+                ISBN = updateRequest.ISBN
+            });
+    }
+
+    [Fact]
+    public async Task SearchBooks_ByTitle_ReturnsMatchingBooks()
+    {
+        await AddBookAsync("book1", "author1", "isbn1");
+        await AddBookAsync("book2", "author2", "isbn2");
+        await AddBookAsync("book3", "author3", "isbn3");
+
+        var response = await this.client.GetAsync("/books/search?title=book");
+
+        response.EnsureSuccessStatusCode();
+        var matchingBooks = await response.DeserializeAsync<List<Book>>();
+        matchingBooks.Should().HaveCount(3);
+        matchingBooks.Should().Contain(b => b.Title == "book1");
+        matchingBooks.Should().Contain(b => b.Title == "book2");
+        matchingBooks.Should().Contain(b => b.Title == "book3");
+    }
+
+    [Fact]
+    public async Task SearchBooks_ByAuthor_ReturnsMatchingBooks()
+    {
+        await AddBookAsync("book1", "author1", "isbn1");
+        await AddBookAsync("book2", "author2", "isbn2");
+        await AddBookAsync("book3", "author1", "isbn3");
+
+        var response = await this.client.GetAsync("/books/search?author=author1");
+
+        response.EnsureSuccessStatusCode();
+        var matchingBooks = await response.DeserializeAsync<List<Book>>();
+        matchingBooks.Should().HaveCount(2);
+        matchingBooks.Should().Contain(b => b.Title == "book1");
+        matchingBooks.Should().Contain(b => b.Title == "book3");
+    }
+
+    [Fact]
+    public async Task SearchBooks_ByISBN_ReturnsMatchingBook()
+    {
+        await AddBookAsync("book1", "author1", "isbn1");
+        await AddBookAsync("book2", "author2", "isbn2");
+        await AddBookAsync("book3", "author3", "isbn3");
+
+        var response = await this.client.GetAsync("/books/search?isbn=isbn2");
+
+        response.EnsureSuccessStatusCode();
+        var matchingBooks = await response.DeserializeAsync<List<Book>>();
+        matchingBooks.Should().HaveCount(1);
+        matchingBooks[0].Title.Should().Be("book2");
+    }
+
+    [Fact]
+    public async Task SearchBooks_WithPagination_ReturnsPaginatedResults()
+    {
+        await AddBookAsync("book1", "author1", "isbn1");
+        await AddBookAsync("book2", "author2", "isbn2");
+        await AddBookAsync("book3", "author3", "isbn3");
+        await AddBookAsync("book4", "author4", "isbn4");
+        await AddBookAsync("book5", "author5", "isbn5");
+
+        var response = await this.client.GetAsync("/books/search?title=book&page=2&pageSize=2");
+
+        response.EnsureSuccessStatusCode();
+        var paginatedBooks = await response.DeserializeAsync<List<Book>>();
+        paginatedBooks.Should().HaveCount(2);
+        paginatedBooks[0].Title.Should().Be("book3");
+        paginatedBooks[1].Title.Should().Be("book4");
+    }
+
+    private async Task<int> AddBookAsync(string title, string author, string isbn)
+    {
+        var addRequest = new AddBookRequest(title, author, isbn);
+        var addResponse = await this.client.PostAsync("/addBook", addRequest.GetHttpContent());
+        var bookId = (await addResponse.DeserializeAsync<AddBookResponse>())!.BookId;
+        return bookId;
+    }
+
+    private async Task<Book?> GetBookByIdAsync(int bookId)
+    {
+        var getResponse = await this.client.GetAsync($"/books/{bookId}");
+        getResponse.EnsureSuccessStatusCode();
+        return await getResponse.DeserializeAsync<Book>();
+    }
+
+}
+
+
+### FILE END: BooksInventoryTests.cs
+
+### FILE START: BooksInventoryRedisExtensions.cs
+# File Path: ../tests/BooksInventory.WebApi.Tests/Extensions/BooksInventoryRedisExtensions.cs
+using System.Text.Json;
+
+using Microsoft.Extensions.Caching.Distributed;
+
+namespace BooksInventory.WebApi.Tests.Extensions;
+
+public static class BooksInventoryRedisExtensions
+{
+    public static string GetCacheKey(this int bookId)
+    {
+        return $"book_{bookId}";
+    }
+
+    public static async Task UpdateBookAsync(this IDistributedCache cache, Book book)
+    {
+        await cache.RemoveAsync(book.Id.GetCacheKey());
+        await cache.SetStringAsync(
+            book.Id.GetCacheKey(),
+            JsonSerializer.Serialize(book));
+    }
+
+    public static async Task<Book> GetByIdAsync(this IDistributedCache cache, int bookId)
+    {
+        var rawData = (await cache.GetStringAsync(bookId.GetCacheKey()))!;
+        string json = ExtractJsonFromHybridCacheValue(rawData);
+        return JsonSerializer.Deserialize<Book>(json)!;
+    }
+
+    /// <summary>
+    /// Extracts the JSON portion from the raw data stored in the hybrid cache.
+    /// This operation is necessary because the hybrid cache adds metadata to the stored values,
+    /// and this method ensures that only the valid JSON content is returned for deserialization.
+    /// </summary>
+    /// <param name="rawData">The raw data retrieved from the hybrid cache.</param>
+    /// <returns>The JSON portion of the raw data.</returns>
+    /// <exception cref="InvalidOperationException">Thrown if the raw data does not contain valid JSON.</exception>
+    private static string ExtractJsonFromHybridCacheValue(string rawData)
+    {
+        // Locate JSON start position
+        int jsonStartIndex = rawData.IndexOf('{');
+        int jsonEndIndex = rawData.LastIndexOf('}');
+
+        if (jsonStartIndex < 0 || jsonEndIndex <= jsonStartIndex)
+        {
+            throw new InvalidOperationException("Invalid hybrid cache value format.");
+        }
+
+        return rawData.Substring(jsonStartIndex, jsonEndIndex - jsonStartIndex + 1);
+    }
+}
+
+### FILE END: BooksInventoryRedisExtensions.cs
+
+### FILE START: BooksInventoryDbContextExtensions.cs
+# File Path: ../tests/BooksInventory.WebApi.Tests/Extensions/BooksInventoryDbContextExtensions.cs
+namespace BooksInventory.WebApi.Tests.Extensions;
+
+public static class BooksInventoryDbContextExtensions
+{
+    public static async Task UpdateBookAsync(this BooksInventoryDbContext db, Book updated)
+    {
+        var existing = await db.Books.FindAsync(updated.Id);
+        db.Entry(existing!).CurrentValues.SetValues(updated);
+        await db.SaveChangesAsync();
+    }
+
+    public static async Task<Book> GetByIdAsync(this BooksInventoryDbContext db, int bookId)
+    {
+        return (await db.Books.FindAsync(bookId))!;
+    }
+}
+
+### FILE END: BooksInventoryDbContextExtensions.cs
+
+### FILE START: HttpContentExtensions.cs
+# File Path: ../tests/BooksInventory.WebApi.Tests/Extensions/HttpContentExtensions.cs
+using System.Text;
+using System.Text.Json;
+
+public static class HttpContentExtensions
+{
+    private static readonly JsonSerializerOptions SerializerOptions = new()
+    {
+        PropertyNameCaseInsensitive = true
+    };
+
+    public static async Task<T?> DeserializeAsync<T>(this HttpResponseMessage response)
+    {
+        return JsonSerializer.Deserialize<T>(
+            await response.Content.ReadAsStringAsync(),
+            SerializerOptions);
+    }
+
+    public static HttpContent GetHttpContent<T>(this T obj) where T : class
+    {
+        return new StringContent(
+            JsonSerializer.Serialize(obj),
+            Encoding.UTF8, "application/json");
+    }
+}
+
+### FILE END: HttpContentExtensions.cs
+
+### FILE START: PostgreSqlContainerFixture.cs
+# File Path: ../tests/BooksInventory.WebApi.Tests/TestContainers/PostgreSqlContainerFixture.cs
+using Microsoft.EntityFrameworkCore;
+
+using Testcontainers.PostgreSql;
+
+using Xunit;
+
+namespace BooksInventory.WebApi.Tests.TestContainers;
+
+public class PostgreSqlContainerFixture : IAsyncLifetime
+{
+    public PostgreSqlContainer Container { get; private set; }
+
+    public PostgreSqlContainerFixture()
+    {
+        Container = new PostgreSqlBuilder()
+            .WithImage("postgres:15-alpine")
+            .Build();
+    }
+
+    public async Task InitializeAsync()
+    {
+        await Container.StartAsync();
+
+        // Ensure that the database schema is created by applying migrations.
+        var options = new DbContextOptionsBuilder<BooksInventoryDbContext>()
+            .UseNpgsql(Container.GetConnectionString())
+            .Options;
+
+        using var context = new BooksInventoryDbContext(options);
+        await context.Database.MigrateAsync();
+    }
+
+    public Task DisposeAsync() => Container.DisposeAsync().AsTask();
+}
+
+
+### FILE END: PostgreSqlContainerFixture.cs
+
+### FILE START: RedisContainerFixture.cs
+# File Path: ../tests/BooksInventory.WebApi.Tests/TestContainers/RedisContainerFixture.cs
+
+using Testcontainers.Redis;
+
+using Xunit;
+
+public class RedisContainerFixture : IAsyncLifetime
+{
+    public RedisContainer Container { get; private set; }
+
+    public RedisContainerFixture()
+    {
+        Container = new RedisBuilder()
+            .WithImage("redis:7-alpine")
+            .Build();
+    }
+
+    public async Task InitializeAsync()
+    {
+        await Container.StartAsync();
+    }
+
+    public Task DisposeAsync() => Container.DisposeAsync().AsTask();
+}
+
+### FILE END: RedisContainerFixture.cs
+
+### FILE START: CompositeFixture.cs
+# File Path: ../tests/BooksInventory.WebApi.Tests/TestContainers/CompositeFixture.cs
+
+using BooksInventory.WebApi.Tests.TestContainers;
+
+using Xunit;
+
+public class CompositeFixture : IAsyncLifetime
+{
+    public PostgreSqlContainerFixture Postgres { get; private set; }
+    public RedisContainerFixture Redis { get; private set; }
+
+    public CompositeFixture()
+    {
+        Postgres = new PostgreSqlContainerFixture();
+        Redis = new RedisContainerFixture();
+    }
+
+    public async Task InitializeAsync()
+    {
+        await Task.WhenAll(
+            Postgres.InitializeAsync(),
+            Redis.InitializeAsync()
+        );
+    }
+
+    public async Task DisposeAsync()
+    {
+        await Task.WhenAll(
+            Postgres.DisposeAsync(),
+            Redis.DisposeAsync()
+        );
+    }
+}
+
+### FILE END: CompositeFixture.cs
+
+### FILE START: BooksInventory.WebApi.Tests.GlobalUsings.g.cs
+# File Path: ../tests/BooksInventory.WebApi.Tests/obj/Debug/net9.0/BooksInventory.WebApi.Tests.GlobalUsings.g.cs
+// <auto-generated/>
+global using global::System;
+global using global::System.Collections.Generic;
+global using global::System.IO;
+global using global::System.Linq;
+global using global::System.Net.Http;
+global using global::System.Threading;
+global using global::System.Threading.Tasks;
+
+
+### FILE END: BooksInventory.WebApi.Tests.GlobalUsings.g.cs
+
+### FILE START: BooksInventory.WebApi.Tests.AssemblyInfo.cs
+# File Path: ../tests/BooksInventory.WebApi.Tests/obj/Debug/net9.0/BooksInventory.WebApi.Tests.AssemblyInfo.cs
+//------------------------------------------------------------------------------
+// <auto-generated>
+//     This code was generated by a tool.
+//
+//     Changes to this file may cause incorrect behavior and will be lost if
+//     the code is regenerated.
+// </auto-generated>
+//------------------------------------------------------------------------------
+
+using System;
+using System.Reflection;
+
+[assembly: System.Reflection.AssemblyCompanyAttribute("BooksInventory.WebApi.Tests")]
+[assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
+[assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+576d887d451caa01143ab0e5d26af592d3872e5e")]
+[assembly: System.Reflection.AssemblyProductAttribute("BooksInventory.WebApi.Tests")]
+[assembly: System.Reflection.AssemblyTitleAttribute("BooksInventory.WebApi.Tests")]
+[assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
+
+// Generated by the MSBuild WriteCodeFragment class.
+
+
+
+### FILE END: BooksInventory.WebApi.Tests.AssemblyInfo.cs
+
+### FILE START: .NETCoreApp,Version=v9.0.AssemblyAttributes.cs
+# File Path: ../tests/BooksInventory.WebApi.Tests/obj/Debug/net9.0/.NETCoreApp,Version=v9.0.AssemblyAttributes.cs
+// <autogenerated />
+using System;
+using System.Reflection;
+[assembly: global::System.Runtime.Versioning.TargetFrameworkAttribute(".NETCoreApp,Version=v9.0", FrameworkDisplayName = ".NET 9.0")]
+
+
+### FILE END: .NETCoreApp,Version=v9.0.AssemblyAttributes.cs
+
+### FILE START: CustomWebApplicationFactory.cs
+# File Path: ../tests/BooksInventory.WebApi.Tests/Factories/CustomWebApplicationFactory.cs
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+
+namespace BooksInventory.WebApi.Tests.Factories;
+
+public class CustomWebApplicationFactory : WebApplicationFactory<Program>
+{
+    private readonly CompositeFixture fixture;
+
+    public CustomWebApplicationFactory(CompositeFixture fixture)
+    {
+        this.fixture = fixture;
+    }
+
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        builder.ConfigureServices(services =>
+        {
+            services.AddDbContext<BooksInventoryDbContext>(options =>
+            {
+                options.UseNpgsql(this.fixture.Postgres.Container.GetConnectionString());
+            });
+            services.AddStackExchangeRedisCache(options =>
+            {
+                options.Configuration = this.fixture.Redis.Container.GetConnectionString();
+                options.InstanceName = "BooksInventoryCache:";
+            });
+        });
+
+        builder.ConfigureLogging(logging =>
+            {
+                logging.ClearProviders();
+                logging.AddConsole();
+            });
+    }
+}
+
+
+### FILE END: CustomWebApplicationFactory.cs
+
+### FILE START: BooksInventoryDbContext.cs
+# File Path: ../src/BooksInventory.WebApi/BooksInventoryDbContext.cs
+using Microsoft.EntityFrameworkCore;
+
+namespace BooksInventory.WebApi;
+
+public class BooksInventoryDbContext : DbContext
+{
+    public DbSet<Book> Books { get; set; }
+
+    public BooksInventoryDbContext(DbContextOptions<BooksInventoryDbContext> options)
+        : base(options)
+    {
+    }
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<Book>()
+            .HasKey(u => u.Id);
+        modelBuilder.Entity<Book>()
+            .HasIndex(u => u.Title)
+            .IsUnique();
+    }
+}
+
+### FILE END: BooksInventoryDbContext.cs
+
+### FILE START: Program.cs
+# File Path: ../src/BooksInventory.WebApi/Program.cs
+using BooksInventory.WebApi;
+
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Hybrid;
+
+using Npgsql;
+
+using OpenTelemetry.Logs;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// Add service for db
+builder.Services.AddDbContext<BooksInventoryDbContext>(options =>
+{
+    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"));
+});
+
+// Add service for Redis using the same multiplexer
+builder.Services.AddStackExchangeRedisCache(options =>
+{
+    options.Configuration = builder.Configuration.GetConnectionString("RedisConnection");
+    options.InstanceName = "BooksInventoryCache:";
+});
+
+builder.Services.AddHybridCache();
+
+var service = ResourceBuilder
+    .CreateDefault()
+    .AddService("BooksInventory.WebApi")
+    .AddAttributes(
+    [
+        new("service.name", "BooksInventory.WebApi"),
+        new("service.namespace", "BooksInventory.WebApi"),
+    ]);
+
+builder.Services.AddOpenTelemetry()
+    .WithTracing(tracing => tracing
+        .SetResourceBuilder(service)
+        .AddAspNetCoreInstrumentation()
+        .AddNpgsql()
+        .AddConsoleExporter()
+        .AddOtlpExporter());
+
+builder.Logging.AddOpenTelemetry(logging => logging
+    .AddOtlpExporter()
+);
+
+var app = builder.Build();
+
+app.MapPost("/addBook", async (AddBookRequest request, BooksInventoryDbContext db) =>
+{
+    var book = new Book
+    {
+        Title = request.Title,
+        Author = request.Author,
+        ISBN = request.ISBN
+    };
+    db.Books.Add(book);
+    await db.SaveChangesAsync();
+    return Results.Ok(new AddBookResponse(book.Id));
+});
+
+app.MapGet("/books/{id}", async (int id, BooksInventoryDbContext db, HybridCache cache) =>
+{
+    var cacheKey = $"book_{id}";
+    var result = await cache.GetOrCreateAsync(cacheKey, async (cancellationToken) =>
+    {
+        return await db.Books.FindAsync([id], cancellationToken);
+    });
+
+    return result is not null
+        ? Results.Ok(result)
+        : Results.NotFound(new { Message = "Book not found", BookId = id });
+});
+
+app.MapGet("/books", async (int? page, int? pageSize, BooksInventoryDbContext db) =>
+{
+    try
+    {
+        var (currentPage, currentPageSize) = GetPaginationValues(page, pageSize);
+        ValidatePaginationValues(currentPage, currentPageSize);
+
+        var books = await db.Books
+            .OrderBy(b => b.Id)
+            .Skip((currentPage - 1) * currentPageSize)
+            .Take(currentPageSize)
+            .ToListAsync();
+
+        return Results.Ok(books);
+    }
+    catch (ArgumentException ex)
+    {
+        return Results.BadRequest(new { ex.Message });
+    }
+});
+
+app.MapGet("/books/search", async (string? title, string? author, string? isbn, int? page, int? pageSize, BooksInventoryDbContext db) =>
+{
+    try
+    {
+        var (currentPage, currentPageSize) = GetPaginationValues(page, pageSize);
+        ValidatePaginationValues(currentPage, currentPageSize);
+
+        var query = db.Books.AsQueryable();
+
+        if (!string.IsNullOrEmpty(title))
+        {
+            query = query.Where(b => b.Title.Contains(title));
+        }
+
+        if (!string.IsNullOrEmpty(author))
+        {
+            query = query.Where(b => b.Author.Contains(author));
+        }
+
+        if (!string.IsNullOrEmpty(isbn))
+        {
+            query = query.Where(b => b.ISBN == isbn);
+        }
+
+        var books = await query
+            .OrderBy(b => b.Id)
+            .Skip((currentPage - 1) * currentPageSize)
+            .Take(currentPageSize)
+            .ToListAsync();
+
+        return Results.Ok(books);
+    }
+    catch (ArgumentException ex)
+    {
+        return Results.BadRequest(new { ex.Message });
+    }
+});
+
+app.MapDelete("/books/{id}", async (int id, BooksInventoryDbContext db, HybridCache cache) =>
+{
+    var book = await db.Books.FindAsync(id);
+    if (book is null)
+    {
+        return Results.NotFound(new { Message = "Book not found", BookId = id });
+    }
+
+    db.Books.Remove(book);
+    await db.SaveChangesAsync();
+
+    // Remove the entry from the cache
+    await cache.RemoveAsync($"book_{id}");
+
+    return Results.NoContent();
+});
+
+app.MapPut("/books/{id}", async (int id, AddBookRequest request, BooksInventoryDbContext db, HybridCache cache) =>
+{
+    // AsNoTracking ensures that EF Core doesn't track the original entity,
+    // avoiding the multiple-instance conflict when calling Update(),
+    // and improves performance since we'll update the entity right away.
+    var book = await db.Books.AsNoTracking().FirstOrDefaultAsync(b => b.Id == id);
+    if (book is null)
+    {
+        return Results.NotFound(new { Message = "Book not found", BookId = id });
+    }
+
+    book = book with
+    {
+        Title = request.Title,
+        Author = request.Author,
+        ISBN = request.ISBN
+    };
+
+    db.Books.Update(book);
+    await db.SaveChangesAsync();
+
+    // Update the cache
+    await cache.SetAsync($"book_{id}", book);
+
+    return Results.Ok(book);
+});
+
+app.Run();
+
+static (int CurrentPage, int CurrentPageSize) GetPaginationValues(int? page, int? pageSize)
+{
+    const int defaultPage = 1;
+    const int defaultPageSize = 10;
+
+    int currentPage = page ?? defaultPage;
+    int currentPageSize = pageSize ?? defaultPageSize;
+
+    return (currentPage, currentPageSize);
+}
+
+static void ValidatePaginationValues(int currentPage, int currentPageSize)
+{
+    const int maxPageSize = 100;
+
+    if (currentPage <= 0 || currentPageSize <= 0)
+    {
+        throw new ArgumentException("Page and pageSize must be greater than 0.");
+    }
+
+    if (currentPageSize > maxPageSize)
+    {
+        throw new ArgumentException($"Page size cannot be greater than {maxPageSize}.");
+    }
+}
+
+public record AddBookRequest(string Title, string Author, string ISBN);
+public record AddBookResponse(int BookId);
+public record Book
+{
+    public int Id { get; init; }
+    public required string Title { get; init; }
+    public required string Author { get; init; }
+    public required string ISBN { get; init; }
+}
+
+// Explicitly define Program as partial for integration tests
+public partial class Program { }
+
+
+### FILE END: Program.cs
+
+### FILE START: BooksInventory.WebApi.AssemblyInfo.cs
+# File Path: ../src/BooksInventory.WebApi/obj/Debug/net9.0/BooksInventory.WebApi.AssemblyInfo.cs
+//------------------------------------------------------------------------------
+// <auto-generated>
+//     This code was generated by a tool.
+//
+//     Changes to this file may cause incorrect behavior and will be lost if
+//     the code is regenerated.
+// </auto-generated>
+//------------------------------------------------------------------------------
+
+using System;
+using System.Reflection;
+
+[assembly: System.Reflection.AssemblyCompanyAttribute("BooksInventory.WebApi")]
+[assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
+[assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+576d887d451caa01143ab0e5d26af592d3872e5e")]
+[assembly: System.Reflection.AssemblyProductAttribute("BooksInventory.WebApi")]
+[assembly: System.Reflection.AssemblyTitleAttribute("BooksInventory.WebApi")]
+[assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
+
+// Generated by the MSBuild WriteCodeFragment class.
+
+
+
+### FILE END: BooksInventory.WebApi.AssemblyInfo.cs
+
+### FILE START: BooksInventory.WebApi.GlobalUsings.g.cs
+# File Path: ../src/BooksInventory.WebApi/obj/Debug/net9.0/BooksInventory.WebApi.GlobalUsings.g.cs
+// <auto-generated/>
+global using global::Microsoft.AspNetCore.Builder;
+global using global::Microsoft.AspNetCore.Hosting;
+global using global::Microsoft.AspNetCore.Http;
+global using global::Microsoft.AspNetCore.Routing;
+global using global::Microsoft.Extensions.Configuration;
+global using global::Microsoft.Extensions.DependencyInjection;
+global using global::Microsoft.Extensions.Hosting;
+global using global::Microsoft.Extensions.Logging;
+global using global::System;
+global using global::System.Collections.Generic;
+global using global::System.IO;
+global using global::System.Linq;
+global using global::System.Net.Http;
+global using global::System.Net.Http.Json;
+global using global::System.Threading;
+global using global::System.Threading.Tasks;
+
+
+### FILE END: BooksInventory.WebApi.GlobalUsings.g.cs
+
+### FILE START: .NETCoreApp,Version=v9.0.AssemblyAttributes.cs
+# File Path: ../src/BooksInventory.WebApi/obj/Debug/net9.0/.NETCoreApp,Version=v9.0.AssemblyAttributes.cs
+// <autogenerated />
+using System;
+using System.Reflection;
+[assembly: global::System.Runtime.Versioning.TargetFrameworkAttribute(".NETCoreApp,Version=v9.0", FrameworkDisplayName = ".NET 9.0")]
+
+
+### FILE END: .NETCoreApp,Version=v9.0.AssemblyAttributes.cs
+
+### FILE START: InstrumentedHybridCache.cs
+# File Path: ../src/BooksInventory.WebApi/OpenTelemetry/InstrumentedHybridCache.cs
+using System.Diagnostics;
+
+using Microsoft.Extensions.Caching.Hybrid;
+
+namespace BooksInventory.WebApi.OpenTelemetry;
+
+internal sealed class InstrumentedHybridCache(HybridCache cache, ActivitySource activitySource) : HybridCache
+{
+    private readonly HybridCache cache = cache;
+    private readonly ActivitySource activitySource = activitySource;
+
+    private static class HybridCacheActivities
+    {
+        public const string GetOrCreate = "HybridCache.GetOrCreate";
+        public const string ExecuteFactory = "HybridCache.ExecuteFactory";
+        public const string Remove = "HybridCache.Remove";
+        public const string RemoveByTag = "HybridCache.RemoveByTag";
+        public const string Set = "HybridCache.Set";
+    }
+
+    public override async ValueTask<T> GetOrCreateAsync<TState, T>(string key, TState state, Func<TState, CancellationToken, ValueTask<T>> factory, HybridCacheEntryOptions? options = null, IEnumerable<string>? tags = null, CancellationToken cancellationToken = default)
+    {
+        using var activity = activitySource.StartActivity(
+            HybridCacheActivities.GetOrCreate,
+            ActivityKind.Internal);
+
+        activity?.SetCacheKey(key);
+        if (tags != null)
+            activity?.SetCacheTags(string.Join(",", tags));
+
+        try
+        {
+            var factoryExecuted = false;
+            ValueTask<T> WrappedFactory(TState s, CancellationToken ct)
+            {
+                using var activity = activitySource.StartActivity(
+                    HybridCacheActivities.ExecuteFactory,
+                    ActivityKind.Internal);
+                activity?.SetCacheKey(key);
+                factoryExecuted = true;
+                return factory(s, ct);
+            }
+
+            var result = await cache.GetOrCreateAsync(key, state, WrappedFactory, options, tags, cancellationToken);
+
+            activity?.SetCacheHit(!factoryExecuted);
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            activity?.SetCacheError(ex.Message);
+            throw;
+        }
+    }
+
+    public override async ValueTask RemoveAsync(string key, CancellationToken cancellationToken = default)
+    {
+        using var activity = activitySource.StartActivity(
+            HybridCacheActivities.Remove,
+            ActivityKind.Internal);
+
+        activity?.SetCacheKey(key);
+        try
+        {
+            await cache.RemoveAsync(key, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            activity?.SetCacheError(ex.Message);
+            throw;
+        }
+    }
+
+    public override async ValueTask RemoveByTagAsync(string tag, CancellationToken cancellationToken = default)
+    {
+        using var activity = activitySource.StartActivity(
+            HybridCacheActivities.RemoveByTag,
+            ActivityKind.Internal);
+
+        activity?.SetCacheTag(tag);
+        try
+        {
+            await cache.RemoveByTagAsync(tag, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            activity?.SetCacheError(ex.Message);
+            throw;
+        }
+    }
+
+    public override async ValueTask SetAsync<T>(string key, T value, HybridCacheEntryOptions? options = null, IEnumerable<string>? tags = null, CancellationToken cancellationToken = default)
+    {
+        using var activity = activitySource.StartActivity(
+            HybridCacheActivities.Set,
+            ActivityKind.Internal);
+
+        activity?.SetCacheKey(key);
+        if (tags != null)
+            activity?.SetCacheTags(string.Join(",", tags));
+
+        try
+        {
+            await cache.SetAsync(key, value, options, tags, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            activity?.SetCacheError(ex.Message);
+            throw;
+        }
+    }
+}
+
+### FILE END: InstrumentedHybridCache.cs
+
+### FILE START: InstrumentedHybridCacheActivityExtensions.cs
+# File Path: ../src/BooksInventory.WebApi/OpenTelemetry/InstrumentedHybridCacheActivityExtensions.cs
+using System.Diagnostics;
+
+namespace BooksInventory.WebApi.OpenTelemetry;
+
+internal static class InstrumentedHybridCacheActivityExtensions
+{
+    public static void SetCacheKey(this Activity activity, string key)
+    {
+        activity.SetTag("hybridcache.key", key);
+    }
+
+    public static void SetCacheTag(this Activity activity, string tag)
+    {
+        activity.SetTag("hybridcache.tag", tag);
+    }
+
+    public static void SetCacheTags(this Activity activity, string tags)
+    {
+        activity.SetTag("hybridcache.tags", tags);
+    }
+
+    public static void SetCacheHit(this Activity activity, bool hit)
+    {
+        activity.SetTag("hybridcache.hit", hit);
+    }
+
+    public static void SetCacheError(this Activity activity, string message)
+    {
+        activity.SetTag("error", true);
+        activity.SetTag("error.message", message);
+    }
+}
+
+### FILE END: InstrumentedHybridCacheActivityExtensions.cs
+
+### FILE START: HybridCacheInstrumentationExtensions.cs
+# File Path: ../src/BooksInventory.WebApi/OpenTelemetry/HybridCacheInstrumentationExtensions.cs
+using BooksInventory.WebApi.OpenTelemetry;
+
+using Microsoft.Extensions.Caching.Hybrid;
+
+using OpenTelemetry.Logs;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Trace;
+
+using System.Diagnostics;
+
+internal static class HybridCacheInstrumentationExtensions
+{
+
+    public static TracerProviderBuilder AddHybridCacheInstrumentation(this TracerProviderBuilder builder)
+    {
+        builder.ConfigureServices(services =>
+        {
+            var source = new ActivitySource("HybridCache");
+            services.AddSingleton(source);
+            services.Decorate<HybridCache, InstrumentedHybridCache>();
+        });
+        return builder;
+    }
+
+    public static TracerProviderBuilder AddHybridCacheInstrumentation_Old(this TracerProviderBuilder builder)
+    {
+        builder.ConfigureServices(services =>
+        {
+            var source = new ActivitySource("HybridCache");
+            services.AddSingleton(source);
+
+            // Get the original service descriptor for HybridCache
+            var descriptor = services.FirstOrDefault(d => d.ServiceType == typeof(HybridCache));
+            if (descriptor != null)
+            {
+                // Remove the original registration
+                services.Remove(descriptor);
+
+                // Re-register with decorator
+                services.Add(new ServiceDescriptor(
+                    typeof(HybridCache),
+                    sp =>
+                    {
+                        // Get the original implementation using the original factory
+                        var originalFactory = descriptor.ImplementationFactory ??
+                            (sp => ActivatorUtilities.CreateInstance(sp, descriptor.ImplementationType!));
+                        var original = (HybridCache)originalFactory(sp);
+
+                        // Create the decorated instance
+                        return new InstrumentedHybridCache(
+                            original,
+                            sp.GetRequiredService<ActivitySource>());
+                    },
+                    descriptor.Lifetime));
+            }
+        });
+        return builder;
+    }
+}
+
+### FILE END: HybridCacheInstrumentationExtensions.cs
