@@ -47,7 +47,7 @@ public class BooksInventoryTests : IAsyncLifetime
         var request = new AddBookRequest("AI Engineering", "Chip Huyen", "1098166302");
         var content = request.GetHttpContent();
 
-        var response = await this.client.PostAsync("/addBook", content);
+        var response = await this.client.PostAsync("/books", content);
 
         response.EnsureSuccessStatusCode();
         var result = await response.DeserializeAsync<AddBookResponse>();
@@ -208,7 +208,7 @@ public class BooksInventoryTests : IAsyncLifetime
     private async Task<int> AddBookAsync(string title, string author, string isbn)
     {
         var addRequest = new AddBookRequest(title, author, isbn);
-        var addResponse = await this.client.PostAsync("/addBook", addRequest.GetHttpContent());
+        var addResponse = await this.client.PostAsync("/books", addRequest.GetHttpContent());
         var bookId = (await addResponse.DeserializeAsync<AddBookResponse>())!.Id;
         return bookId;
     }
