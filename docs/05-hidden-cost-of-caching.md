@@ -6,23 +6,28 @@ Update a record. Refresh the page. Still see the old value? That’s not just an
 
 ### What is a stale cache?
 
-A **stale cache** returns outdated data after the underlying source has changed. It’s a silent failure mode.
+A **stale cache** returns outdated data even after the source has changed. It’s a silent failure that misleads users and systems.
 
 Common causes:
 
-- **race conditions**: a write completes after a read pulls from the cache
-- **delayed expiration**: time-based invalidation misses fast updates
-- **distributed lag**: not all nodes get the update simultaneously
+- **Race conditions**:
+  A GET request reads from the cache right before a PUT updates it.
+
+- **Delayed expiration**:
+  A record was updated, but the cache still holds the old value because its TTL hasn’t expired.
+
+- **Distributed lag**:
+  One cache node got the update, but another one didn’t — and it serves the old data.
 
 ### Why it matters
 
-Stale data isn’t just a UX issue. It’s a logic bomb:
+It's not just what users see, stale data misleads everything that depends on it:
 
-- Decisions based on wrong values
-- Reports with ghost records
-- Users distrusting the system
+- Business logic runs on old values
+- Dashboards show records that no longer exist
+- Users lose trust when updates don't stick
 
-Most systems tolerate a bit of staleness. But if you want to **see** it, you need stress.
+Most systems tolerate a bit of staleness. But if you want to **see** it happen, you need pressure.
 
 ## How to detect stale caches
 
@@ -48,6 +53,8 @@ Most bugs don’t show up during manual tests. Code looks clean. But when traffi
 This is how a stale cache may happen:
 
 ![Stale Caching]
+
+> ⚠️ Even with HybridCache and Redis, fast write-read cycles can cause stale reads. This test is designed to expose that lag.
 
 ### Why we use locust
 
@@ -248,6 +255,77 @@ locust -f locustfiles/stale_cache_wave.py
 Watch the wave pattern in the **Failures tab** - spikes followed by calm.
 
 ![Locust stale cache wave load test]
+
+## Why the cache falls behind: a look at the PUT handler
+
+Here’s the ASP.NET endpoint we’re stressing with updates:
+
+```csharp
+app.MapPut("/books/{id}",
+    async (
+        int id,
+        AddBookRequest request,
+        BooksInventoryDbContext db,
+        HybridCache cache) =>
+{
+    var book = await db.Books.AsNoTracking().FirstOrDefaultAsync(b => b.Id == id);
+    if (book is null)
+    {
+        return Results.NotFound(new { Message = "Book not found", BookId = id });
+    }
+
+    // Step 1: Update the record
+    book = book with
+    {
+        Title = request.Title,
+        Author = request.Author,
+        ISBN = request.ISBN
+    };
+
+    // Step 2: Save it to the database
+    db.Books.Update(book);
+    await db.SaveChangesAsync();
+    // ✅ DB is now up-to-date
+
+    // ⚠️ Race condition window:
+    // a GET might hit here before
+    // the cache is updated
+
+    // Step 3: refresh the cache
+    await cache.SetAsync($"book_{id}", book);
+    // 🕒 Cache is eventually updated
+
+    return Results.Ok(book);
+});
+```
+
+Looks fine at first:
+
+- Step 1: we update the record
+- Step 2: save it to the database
+- Step 3: refresh the cache
+
+But here’s the catch:
+
+```txt
+[PUT Request]
+   |
+   |--> SaveChangesAsync() ✅
+   |        |
+   |   [Concurrent GET hits here ❌]
+   |
+   |--> SetAsync() ✅
+```
+
+That GET reads stale data.
+
+It’s not a bug. It’s just timing.
+
+And that’s exactly what our test catches:
+
+```
+Update → cache delay → stale read
+```
 
 ## Should we fix stale caches?
 

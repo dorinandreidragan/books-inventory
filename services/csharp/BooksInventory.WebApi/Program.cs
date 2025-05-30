@@ -147,7 +147,12 @@ app.MapDelete("/books/{id}", async (int id, BooksInventoryDbContext db, HybridCa
     return Results.NoContent();
 });
 
-app.MapPut("/books/{id}", async (int id, AddBookRequest request, BooksInventoryDbContext db, HybridCache cache) =>
+app.MapPut("/books/{id}",
+    async (
+        int id,
+        AddBookRequest request,
+        BooksInventoryDbContext db,
+        HybridCache cache) =>
 {
     // AsNoTracking ensures that EF Core doesn't track the original entity,
     // avoiding the multiple-instance conflict when calling Update(),
@@ -165,6 +170,7 @@ app.MapPut("/books/{id}", async (int id, AddBookRequest request, BooksInventoryD
         ISBN = request.ISBN
     };
 
+    // Update the database
     db.Books.Update(book);
     await db.SaveChangesAsync();
 
